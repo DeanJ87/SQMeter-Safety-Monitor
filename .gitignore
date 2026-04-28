@@ -1,0 +1,40 @@
+# Build output
+bin/
+dist/
+
+# Coverage
+coverage.out
+coverage.html
+
+# Config / secrets
+config.json
+.env
+*.env
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# GoReleaser
+dist/
+
+# Go test cache
+*.test
+*.prof
+
+# UUID state file (generated at runtime)
+device-uuid.txt

@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Setup — SQMeter SafetyMonitor</title>
+<style>
+  :root {
+    --safe-fg:   #2ecc71;
+    --unsafe-fg: #e74c3c;
+    --warn-fg:   #f39c12;
+    --card-bg:   #16213e;
+    --border:    #0f3460;
+    --text:      #e0e0e0;
+    --muted:     #8892a4;
+    --input-bg:  #0d1a35;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d0d1a;
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 16px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 12px;
+  }
+  header h1 { font-size: 1.2rem; font-weight: 600; }
+  header nav a { color: #5b9bd5; text-decoration: none; margin-left: 16px; font-size: 0.85rem; }
+
+  .flash-ok {
+    background: #0a3d1f; border: 1px solid var(--safe-fg);
+    color: var(--safe-fg); border-radius: 6px;
+    padding: 10px 16px; margin-bottom: 16px; font-weight: 600;
+  }
+  .flash-restart {
+    background: #2d2000; border: 1px solid var(--warn-fg);
+    color: var(--warn-fg); border-radius: 6px;
+    padding: 10px 16px; margin-bottom: 16px;
+  }
+  .flash-err {
+    background: #3d0a0a; border: 1px solid var(--unsafe-fg);
+    color: var(--unsafe-fg); border-radius: 6px;
+    padding: 10px 16px; margin-bottom: 16px;
+  }
+  .wide-open-warn {
+    background: #2d1500; border: 1px solid var(--warn-fg);
+    color: var(--warn-fg); border-radius: 6px;
+    padding: 10px 16px; margin-bottom: 16px;
+  }
+
+  section {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  section h2 {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 6px;
+  }
+  .field { margin-bottom: 12px; }
+  .field label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .field label .restart-tag {
+    color: var(--warn-fg);
+    font-size: 0.7rem;
+    margin-left: 6px;
+  }
+  .field input[type=text],
+  .field input[type=number],
+  .field select {
+    width: 100%;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    padding: 6px 10px;
+    font-size: 0.9rem;
+    font-family: 'Courier New', monospace;
+  }
+  .field input:focus, .field select:focus {
+    outline: 1px solid #5b9bd5;
+    border-color: #5b9bd5;
+  }
+  .field .hint { font-size: 0.72rem; color: var(--muted); margin-top: 3px; }
+
+  .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    font-size: 0.85rem;
+  }
+  .checkbox-row input[type=checkbox] { accent-color: #5b9bd5; width: 16px; height: 16px; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-top: 8px;
+  }
+  button[type=submit] {
+    background: #1a4a8a;
+    border: 1px solid #5b9bd5;
+    color: #fff;
+    border-radius: 6px;
+    padding: 8px 24px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  button[type=submit]:hover { background: #2060b0; }
+  .config-path { font-size: 0.72rem; color: var(--muted); font-family: 'Courier New', monospace; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Setup — SQMeter SafetyMonitor</h1>
+  <nav>
+    <a href="/">Dashboard</a>
+    <a href="/status.json">status.json</a>
+    <a href="/config.json">config.json</a>
+  </nav>
+</header>
+
+{{if .SavedOK}}
+<div class="flash-ok">✓ Configuration saved successfully.</div>
+{{end}}
+{{if .NeedsRestart}}
+<div class="flash-restart">⚠ Some changes (HTTP bind/port, discovery port) require a restart to take effect.</div>
+{{end}}
+{{if .ErrorMsg}}
+<div class="flash-err">✗ Error: {{.ErrorMsg}}</div>
+{{end}}
+{{if .WideOpen}}
+<div class="wide-open-warn">⚠ Service is reachable from the network (ALPACA_HTTP_BIND={{.Config.AlpacaHTTPBind}}). Do not expose this port to the internet.</div>
+{{end}}
+
+<form method="POST" action="/setup">
+
+<section>
+  <h2>SQMeter Connection</h2>
+  <div class="field">
+    <label>SQMETER_BASE_URL</label>
+    <input type="text" name="SQMETER_BASE_URL" value="{{.Config.SQMeterBaseURL}}" placeholder="http://192.168.1.100">
+    <div class="hint">Base URL of your SQMeter device. Applied immediately.</div>
+  </div>
+</section>
+
+<section>
+  <h2>Polling</h2>
+  <div class="grid2">
+    <div class="field">
+      <label>POLL_INTERVAL_SECONDS</label>
+      <input type="number" name="POLL_INTERVAL_SECONDS" value="{{.Config.PollIntervalSeconds}}" min="1" max="3600">
+      <div class="hint">How often to poll the SQMeter (seconds). Applied immediately.</div>
+    </div>
+    <div class="field">
+      <label>STALE_AFTER_SECONDS</label>
+      <input type="number" name="STALE_AFTER_SECONDS" value="{{.Config.StaleAfterSeconds}}" min="1" max="86400">
+      <div class="hint">Report unsafe if data is older than this (seconds). Applied immediately.</div>
+    </div>
+  </div>
+  <div class="checkbox-row">
+    <input type="checkbox" name="FAIL_CLOSED" value="true" id="fail_closed" {{if .Config.FailClosed}}checked{{end}}>
+    <label for="fail_closed">FAIL_CLOSED — report unsafe when SQMeter is unreachable or data is stale</label>
+  </div>
+</section>
+
+<section>
+  <h2>Cloud Cover Thresholds</h2>
+  <div class="grid2">
+    <div class="field">
+      <label>CLOUD_COVER_UNSAFE_PERCENT</label>
+      <input type="number" name="CLOUD_COVER_UNSAFE_PERCENT" value="{{printf "%.1f" .Config.CloudCoverUnsafePct}}" min="0" max="100" step="0.1">
+      <div class="hint">Cloud cover % that triggers UNSAFE. Applied immediately.</div>
+    </div>
+    <div class="field">
+      <label>CLOUD_COVER_CAUTION_PERCENT</label>
+      <input type="number" name="CLOUD_COVER_CAUTION_PERCENT" value="{{printf "%.1f" .Config.CloudCoverCautionPct}}" min="0" max="100" step="0.1">
+      <div class="hint">Cloud cover % that triggers a caution warning. Applied immediately.</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Sensor Health Requirements</h2>
+  <p style="font-size:0.78rem; color:var(--muted); margin-bottom:10px;">
+    When checked, a non-zero sensor status code (not-found, read error, stale) causes UNSAFE.
+    All apply immediately.
+  </p>
+  <div class="checkbox-row">
+    <input type="checkbox" name="REQUIRE_LIGHT_SENSOR_STATUS_OK" value="true" id="req_light"
+      {{if .Config.RequireLightStatus}}checked{{end}}>
+    <label for="req_light">REQUIRE_LIGHT_SENSOR_STATUS_OK</label>
+  </div>
+  <div class="checkbox-row">
+    <input type="checkbox" name="REQUIRE_ENVIRONMENT_STATUS_OK" value="true" id="req_env"
+      {{if .Config.RequireEnvStatus}}checked{{end}}>
+    <label for="req_env">REQUIRE_ENVIRONMENT_STATUS_OK</label>
+  </div>
+  <div class="checkbox-row">
+    <input type="checkbox" name="REQUIRE_IR_TEMPERATURE_STATUS_OK" value="true" id="req_ir"
+      {{if .Config.RequireIRStatus}}checked{{end}}>
+    <label for="req_ir">REQUIRE_IR_TEMPERATURE_STATUS_OK</label>
+  </div>
+</section>
+
+<section>
+  <h2>Optional Hard Limits</h2>
+  <p style="font-size:0.78rem; color:var(--muted); margin-bottom:10px;">
+    Leave blank to disable a limit. All apply immediately.
+  </p>
+  <div class="grid2">
+    <div class="field">
+      <label>SQM_MIN_SAFE (mag/arcsec²)</label>
+      <input type="number" name="SQM_MIN_SAFE" value="{{.SQMMinSafe}}" step="0.01" placeholder="disabled">
+      <div class="hint">Unsafe if SQM drops below this. Leave blank to disable.</div>
+    </div>
+    <div class="field">
+      <label>HUMIDITY_MAX_SAFE (%)</label>
+      <input type="number" name="HUMIDITY_MAX_SAFE" value="{{.HumidityMaxSafe}}" step="0.1" placeholder="disabled">
+      <div class="hint">Unsafe if humidity exceeds this. Leave blank to disable.</div>
+    </div>
+    <div class="field">
+      <label>DEWPOINT_MARGIN_MIN_C (°C)</label>
+      <input type="number" name="DEWPOINT_MARGIN_MIN_C" value="{{.DewpointMarginMinC}}" step="0.1" placeholder="disabled">
+      <div class="hint">Unsafe if (temperature − dew point) &lt; this. Leave blank to disable.</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Override &amp; Logging</h2>
+  <div class="grid2">
+    <div class="field">
+      <label>MANUAL_OVERRIDE</label>
+      <select name="MANUAL_OVERRIDE">
+        <option value="auto" {{if eq .Config.ManualOverride "auto"}}selected{{end}}>auto (use safety rules)</option>
+        <option value="force_safe" {{if eq .Config.ManualOverride "force_safe"}}selected{{end}}>force_safe (BYPASS RULES)</option>
+        <option value="force_unsafe" {{if eq .Config.ManualOverride "force_unsafe"}}selected{{end}}>force_unsafe (always UNSAFE)</option>
+      </select>
+      <div class="hint">Applied immediately. force_safe bypasses all safety rules.</div>
+    </div>
+    <div class="field">
+      <label>LOG_LEVEL</label>
+      <select name="LOG_LEVEL">
+        <option value="debug" {{if eq .Config.LogLevel "debug"}}selected{{end}}>debug</option>
+        <option value="info" {{if eq .Config.LogLevel "info"}}selected{{end}}>info</option>
+        <option value="warn" {{if eq .Config.LogLevel "warn"}}selected{{end}}>warn</option>
+        <option value="error" {{if eq .Config.LogLevel "error"}}selected{{end}}>error</option>
+      </select>
+      <div class="hint">Log verbosity. Requires restart to change active logger level.</div>
+    </div>
+  </div>
+  <div class="checkbox-row">
+    <input type="checkbox" name="CONNECTED_ON_STARTUP" value="true" id="conn_startup"
+      {{if .Config.ConnectedOnStartup}}checked{{end}}>
+    <label for="conn_startup">CONNECTED_ON_STARTUP — start in connected state on next launch</label>
+  </div>
+</section>
+
+<section>
+  <h2>Network <span style="color:var(--warn-fg); font-size:0.7rem; font-weight:normal;">(changes require restart)</span></h2>
+  <div class="grid2">
+    <div class="field">
+      <label>ALPACA_HTTP_BIND <span class="restart-tag">restart required</span></label>
+      <input type="text" name="ALPACA_HTTP_BIND" value="{{.Config.AlpacaHTTPBind}}" placeholder="127.0.0.1">
+      <div class="hint">Use 127.0.0.1 (local only) or 0.0.0.0 (network accessible).</div>
+    </div>
+    <div class="field">
+      <label>ALPACA_HTTP_PORT <span class="restart-tag">restart required</span></label>
+      <input type="number" name="ALPACA_HTTP_PORT" value="{{.Config.AlpacaHTTPPort}}" min="1" max="65535">
+    </div>
+    <div class="field">
+      <label>ALPACA_DISCOVERY_PORT <span class="restart-tag">restart required</span></label>
+      <input type="number" name="ALPACA_DISCOVERY_PORT" value="{{.Config.AlpacaDiscoveryPort}}" min="1" max="65535">
+    </div>
+  </div>
+</section>
+
+<div class="actions">
+  <button type="submit">Save configuration</button>
+  {{if .ConfigPath}}
+  <span class="config-path">Saving to: {{.ConfigPath}}</span>
+  {{else}}
+  <span class="config-path" style="color:var(--warn-fg);">No config file path — changes apply in-memory only and will not survive restart.</span>
+  {{end}}
+</div>
+
+</form>
+
+</body>
+</html>

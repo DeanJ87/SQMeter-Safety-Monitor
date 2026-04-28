@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="10">
+<title>SQMeter SafetyMonitor</title>
+<style>
+  :root {
+    --safe-bg:    #0a3d1f;
+    --safe-fg:    #2ecc71;
+    --unsafe-bg:  #3d0a0a;
+    --unsafe-fg:  #e74c3c;
+    --warn-fg:    #f39c12;
+    --panel-bg:   #1a1a2e;
+    --card-bg:    #16213e;
+    --border:     #0f3460;
+    --text:       #e0e0e0;
+    --muted:      #8892a4;
+    --mono:       'Courier New', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d0d1a;
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 16px;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 12px;
+  }
+  header h1 { font-size: 1.2rem; color: var(--text); font-weight: 600; }
+  header small { color: var(--muted); font-size: 0.75rem; }
+
+  .state-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    border-radius: 10px;
+    padding: 24px 32px;
+    margin-bottom: 20px;
+    border: 2px solid;
+  }
+  .state-banner.safe   { background: var(--safe-bg);   border-color: var(--safe-fg);   }
+  .state-banner.unsafe { background: var(--unsafe-bg);  border-color: var(--unsafe-fg); }
+  .state-label {
+    font-size: 3rem;
+    font-weight: 800;
+    letter-spacing: 4px;
+  }
+  .safe   .state-label { color: var(--safe-fg);   }
+  .unsafe .state-label { color: var(--unsafe-fg); }
+  .state-meta { color: var(--muted); font-size: 0.8rem; line-height: 1.8; }
+
+  .override-warn {
+    background: #3d2800;
+    border: 1px solid var(--warn-fg);
+    border-radius: 6px;
+    color: var(--warn-fg);
+    padding: 10px 16px;
+    margin-bottom: 16px;
+    font-weight: 600;
+    text-align: center;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .card h2 {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 6px;
+  }
+  .kv { display: flex; justify-content: space-between; padding: 3px 0; }
+  .kv .k { color: var(--muted); }
+  .kv .v { font-family: var(--mono); font-weight: 600; }
+  .kv .v.ok   { color: var(--safe-fg); }
+  .kv .v.err  { color: var(--unsafe-fg); }
+  .kv .v.warn { color: var(--warn-fg); }
+
+  .reasons, .warnings {
+    margin-top: 4px;
+    padding: 0;
+    list-style: none;
+  }
+  .reasons li  { color: var(--unsafe-fg); padding: 2px 0; }
+  .reasons li::before  { content: "✗ "; }
+  .warnings li { color: var(--warn-fg);   padding: 2px 0; }
+  .warnings li::before { content: "⚠ "; }
+
+  .links {
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+    margin-top: 4px;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .links a { color: #5b9bd5; text-decoration: none; margin-right: 12px; }
+  .links a:hover { text-decoration: underline; }
+
+  footer {
+    margin-top: 20px;
+    border-top: 1px solid var(--border);
+    padding-top: 10px;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>SQMeter SafetyMonitor</h1>
+    <small>ASCOM Alpaca bridge &nbsp;·&nbsp; port {{.HTTPPort}} &nbsp;·&nbsp; uptime {{.Uptime}}</small>
+  </div>
+  <div style="text-align:right">
+    <small>SQMeter: <code>{{.SQMeterURL}}</code></small><br>
+    <small>Discovery UDP: {{.DiscoveryPort}}</small>
+  </div>
+</header>
+
+{{if .WideOpen}}
+<div class="override-warn" style="background:#2d1500;border-color:#f39c12;color:#f39c12;">
+  ⚠ Service is reachable from the network. Do not expose this port to the internet.
+  <a href="/setup" style="color:#f39c12;margin-left:8px; font-weight:normal;">[Setup]</a>
+</div>
+{{end}}
+{{if eq .Override "force_safe"}}
+<div class="override-warn">⚠ MANUAL OVERRIDE: force_safe — safety rules are bypassed
+  <a href="/setup" style="color:var(--warn-fg);margin-left:8px;font-weight:normal;">[Setup]</a>
+</div>
+{{end}}
+{{if eq .Override "force_unsafe"}}
+<div class="override-warn">⛔ MANUAL OVERRIDE: force_unsafe — always reporting UNSAFE
+  <a href="/setup" style="color:var(--warn-fg);margin-left:8px;font-weight:normal;">[Setup]</a>
+</div>
+{{end}}
+
+<div class="state-banner {{if .State.IsSafe}}safe{{else}}unsafe{{end}}">
+  <div class="state-label">{{if .State.IsSafe}}SAFE{{else}}UNSAFE{{end}}</div>
+  <div class="state-meta">
+    Connected: {{if .Connected}}yes{{else}}no{{end}}<br>
+    Last poll: {{.LastPoll}}<br>
+    Last success: {{.LastSuccess}}
+  </div>
+</div>
+
+{{if .State.Reasons}}
+<div class="card" style="margin-bottom:16px; border-color: #e74c3c55;">
+  <h2>Unsafe reasons</h2>
+  <ul class="reasons">
+    {{range .State.Reasons}}<li>{{.}}</li>{{end}}
+  </ul>
+</div>
+{{end}}
+
+{{if .State.Warnings}}
+<div class="card" style="margin-bottom:16px; border-color: #f39c1255;">
+  <h2>Warnings / cautions</h2>
+  <ul class="warnings">
+    {{range .State.Warnings}}<li>{{.}}</li>{{end}}
+  </ul>
+</div>
+{{end}}
+
+<div class="grid">
+
+  <div class="card">
+    <h2>Sky Quality</h2>
+    {{if .HasData}}
+    <div class="kv"><span class="k">SQM</span>
+      <span class="v">{{printf "%.2f" .State.Values.SQM}} mag/arcsec²</span></div>
+    <div class="kv"><span class="k">Bortle</span>
+      <span class="v">{{printf "%.1f" .State.Values.Bortle}}</span></div>
+    {{else}}
+    <div class="kv"><span class="k">—</span><span class="v err">no data</span></div>
+    {{end}}
+  </div>
+
+  <div class="card">
+    <h2>Cloud Cover</h2>
+    {{if .HasData}}
+    <div class="kv"><span class="k">Cover</span>
+      <span class="v {{if ge .State.Values.CloudCoverPercent 80.0}}err{{else if ge .State.Values.CloudCoverPercent 50.0}}warn{{else}}ok{{end}}">
+        {{printf "%.1f" .State.Values.CloudCoverPercent}}%
+      </span></div>
+    <div class="kv"><span class="k">Condition</span>
+      <span class="v">{{.State.Values.CloudCondition}}</span></div>
+    <div class="kv"><span class="k">IR delta</span>
+      <span class="v">{{printf "%.1f" .State.Values.TemperatureDelta}}°C</span></div>
+    <div class="kv"><span class="k">Corrected delta</span>
+      <span class="v">{{printf "%.1f" .State.Values.CorrectedDelta}}°C</span></div>
+    {{else}}
+    <div class="kv"><span class="k">—</span><span class="v err">no data</span></div>
+    {{end}}
+  </div>
+
+  <div class="card">
+    <h2>Environment</h2>
+    {{if .HasData}}
+    <div class="kv"><span class="k">Temperature</span>
+      <span class="v">{{printf "%.1f" .State.Values.Temperature}}°C</span></div>
+    <div class="kv"><span class="k">Humidity</span>
+      <span class="v">{{printf "%.1f" .State.Values.Humidity}}%</span></div>
+    <div class="kv"><span class="k">Dew point</span>
+      <span class="v">{{printf "%.1f" .State.Values.Dewpoint}}°C</span></div>
+    <div class="kv"><span class="k">Dew margin</span>
+      <span class="v {{if lt .DewMargin 3.0}}warn{{else}}ok{{end}}">
+        {{printf "%.1f" .DewMargin}}°C
+      </span></div>
+    {{else}}
+    <div class="kv"><span class="k">—</span><span class="v err">no data</span></div>
+    {{end}}
+  </div>
+
+  <div class="card">
+    <h2>Status</h2>
+    <div class="kv"><span class="k">Connected</span>
+      <span class="v {{if .Connected}}ok{{else}}err{{end}}">{{if .Connected}}yes{{else}}no{{end}}</span></div>
+    <div class="kv"><span class="k">Override</span>
+      <span class="v {{if ne .Override "auto"}}warn{{end}}">{{.Override}}</span></div>
+    <div class="kv"><span class="k">Has data</span>
+      <span class="v {{if .HasData}}ok{{else}}err{{end}}">{{if .HasData}}yes{{else}}no{{end}}</span></div>
+    {{if .State.LastError}}
+    <div class="kv"><span class="k">Last error</span>
+      <span class="v err" style="font-size:0.75rem; max-width:180px; word-break:break-all;">{{.State.LastError}}</span></div>
+    {{end}}
+  </div>
+
+</div>
+
+<div class="links">
+  Alpaca:
+  <a href="/management/apiversions">/apiversions</a>
+  <a href="/management/v1/configureddevices">/configureddevices</a>
+  <a href="/api/v1/safetymonitor/0/issafe">/issafe</a>
+  &nbsp;|&nbsp;
+  <a href="/status.json">/status.json</a>
+  <a href="/health">/health</a>
+  <a href="/setup">/setup</a>
+</div>
+
+<footer>
+  Refreshes every 10 seconds &nbsp;·&nbsp;
+  <a href="/status.json" style="color:#5b9bd5">status.json</a>
+</footer>
+
+</body>
+</html>

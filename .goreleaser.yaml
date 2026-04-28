@@ -1,0 +1,76 @@
+version: 2
+
+project_name: sqmeter-alpaca-safetymonitor
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: windows-amd64
+    main: ./cmd/sqmeter-alpaca-safetymonitor
+    binary: sqmeter-alpaca-safetymonitor
+    goos: [windows]
+    goarch: [amd64]
+    ldflags:
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+  - id: linux-amd64
+    main: ./cmd/sqmeter-alpaca-safetymonitor
+    binary: sqmeter-alpaca-safetymonitor
+    goos: [linux]
+    goarch: [amd64]
+    ldflags:
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+  - id: linux-arm64
+    main: ./cmd/sqmeter-alpaca-safetymonitor
+    binary: sqmeter-alpaca-safetymonitor
+    goos: [linux]
+    goarch: [arm64]
+    ldflags:
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: windows
+    ids: [windows-amd64]
+    formats: [zip]
+    name_template: "{{ .ProjectName }}-{{ .Version }}-windows-amd64"
+    files:
+      - README.md
+      - LICENSE
+      - .env.example
+
+  - id: linux
+    ids: [linux-amd64, linux-arm64]
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE
+      - .env.example
+
+checksum:
+  name_template: "checksums.txt"
+
+release:
+  github:
+    owner: "{{ .Env.GITHUB_REPOSITORY_OWNER }}"
+    name: sqmeter-alpaca-safetymonitor
+  draft: false
+  prerelease: auto
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
