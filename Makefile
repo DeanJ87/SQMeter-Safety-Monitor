@@ -5,7 +5,8 @@ DATE     ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS  := -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)"
 MAIN     := ./cmd/$(BINARY)
 
-.PHONY: all build build-windows build-linux build-linux-arm64 test lint fmt vet clean run
+.PHONY: all build build-windows build-linux build-linux-arm64 test lint fmt vet clean run \
+        service-install service-start service-stop service-uninstall service-status
 
 all: build
 
@@ -45,3 +46,19 @@ clean:
 
 run: build
 	./bin/$(BINARY)
+
+# Windows service management (run as Administrator)
+service-install: build
+	./bin/$(BINARY) --service install
+
+service-start:
+	./bin/$(BINARY) --service start
+
+service-stop:
+	./bin/$(BINARY) --service stop
+
+service-uninstall:
+	./bin/$(BINARY) --service uninstall
+
+service-status:
+	./bin/$(BINARY) --service status
