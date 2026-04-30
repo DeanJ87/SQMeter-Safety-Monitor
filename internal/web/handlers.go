@@ -165,12 +165,13 @@ func (h *Handler) StatusJSON(w http.ResponseWriter, r *http.Request) {
 // ---------- setup page -------------------------------------------------------
 
 type SetupData struct {
-	Config       *config.Config
-	ConfigPath   string
-	WideOpen     bool
-	SavedOK      bool
-	NeedsRestart bool
-	ErrorMsg     string
+	Config                *config.Config
+	ConfigPath            string
+	WideOpen              bool
+	SavedOK               bool
+	NeedsRestart          bool
+	RestartRequiredFields []string
+	ErrorMsg              string
 	// Pre-formatted optional fields (empty string = disabled)
 	SQMMinSafe         string
 	HumidityMaxSafe    string
@@ -179,13 +180,15 @@ type SetupData struct {
 
 func newSetupData(cfgHolder *config.Holder, q url.Values) SetupData {
 	cfg := cfgHolder.Get()
+	restartFields := q["restart_required_fields"]
 	d := SetupData{
-		Config:       cfg,
-		ConfigPath:   cfgHolder.Path(),
-		WideOpen:     config.IsWideOpen(cfg.AlpacaHTTPBind),
-		SavedOK:      q.Get("saved") == "1",
-		NeedsRestart: q.Get("restart") == "1",
-		ErrorMsg:     q.Get("error"),
+		Config:                cfg,
+		ConfigPath:            cfgHolder.Path(),
+		WideOpen:              config.IsWideOpen(cfg.AlpacaHTTPBind),
+		SavedOK:               q.Get("saved") == "1",
+		NeedsRestart:          q.Get("restart") == "1" || len(restartFields) > 0,
+		RestartRequiredFields: restartFields,
+		ErrorMsg:              q.Get("error"),
 	}
 	if cfg.SQMMinSafe != nil {
 		d.SQMMinSafe = fmt.Sprintf("%.2f", *cfg.SQMMinSafe)
@@ -240,11 +243,14 @@ func (h *Handler) PostSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	q := "/setup?saved=1"
-	if config.NeedsRestart(old, &updated) {
-		q += "&restart=1"
+	q := url.Values{"saved": {"1"}}
+	for _, field := range config.RestartRequiredFields(old, &updated) {
+		q.Add("restart_required_fields", field)
 	}
-	http.Redirect(w, r, q, http.StatusSeeOther)
+	if len(q["restart_required_fields"]) > 0 {
+		q.Set("restart", "1")
+	}
+	http.Redirect(w, r, "/setup?"+q.Encode(), http.StatusSeeOther)
 }
 
 // ---------- config JSON API --------------------------------------------------
@@ -271,7 +277,7 @@ func (h *Handler) PutConfigJSON(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	restartNeeded := config.NeedsRestart(old, &updated)
+	restartFields := config.RestartRequiredFields(old, &updated)
 	if err := h.cfgHolder.Update(&updated); err != nil {
 		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusUnprocessableEntity)
 		return
@@ -279,12 +285,19 @@ func (h *Handler) PutConfigJSON(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	type result struct {
-		Config       *config.Config `json:"config"`
-		NeedsRestart bool           `json:"needsRestart"`
+		Config                *config.Config `json:"config"`
+		RestartRequired       bool           `json:"restart_required"`
+		RestartRequiredFields []string       `json:"restart_required_fields"`
+		NeedsRestart          bool           `json:"needsRestart"`
 	}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	_ = enc.Encode(result{Config: h.cfgHolder.Get(), NeedsRestart: restartNeeded})
+	_ = enc.Encode(result{
+		Config:                h.cfgHolder.Get(),
+		RestartRequired:       len(restartFields) > 0,
+		RestartRequiredFields: restartFields,
+		NeedsRestart:          len(restartFields) > 0,
+	})
 }
 
 // ---------- form helpers -----------------------------------------------------
