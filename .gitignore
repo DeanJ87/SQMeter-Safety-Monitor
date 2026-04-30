@@ -4,6 +4,7 @@ dist/
 
 # Coverage
 coverage.out
+coverage.txt
 coverage.html
 
 # Config / secrets
