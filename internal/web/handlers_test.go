@@ -150,6 +150,36 @@ func TestDashboard_Renders200(t *testing.T) {
 	}
 }
 
+func TestDashboard_WithDiscoveryStatus_Healthy(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	h.WithDiscovery(func() discovery.Status {
+		return discovery.Status{ConfiguredPort: 32227, Running: true, Healthy: true}
+	})
+	w := serve(t, h, http.MethodGet, "/", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("dashboard with discovery: want 200, got %d", w.Code)
+	}
+}
+
+func TestDashboard_WithDiscoveryStatus_Unhealthy(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	h.WithDiscovery(func() discovery.Status {
+		return discovery.Status{
+			ConfiguredPort: 32227,
+			Running:        false,
+			Healthy:        false,
+			LastError:      "listen udp :32227: bind: address already in use",
+		}
+	})
+	w := serve(t, h, http.MethodGet, "/", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("dashboard unhealthy discovery: want 200, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "not running") {
+		t.Error("dashboard: expected 'not running' text for unhealthy discovery")
+	}
+}
+
 func TestDashboard_AliasedFromStatus(t *testing.T) {
 	h, _, _ := newTestWebHandler(t, true, safeEv())
 	w := serve(t, h, http.MethodGet, "/status", "")

@@ -107,13 +107,12 @@ func (r *Responder) Run(ctx context.Context) error {
 			r.logger.Debug("discovery: received probe", "from", remote)
 			if _, werr := conn.WriteToUDP(reply, remote); werr != nil {
 				r.logger.Warn("discovery: write error", "error", werr)
-			} else {
-				sent := time.Now().UTC()
-				r.mu.Lock()
-				r.status.LastResponseAt = &sent
-				r.status.ResponseCount++
-				r.mu.Unlock()
 			}
+			sent := time.Now().UTC()
+			r.mu.Lock()
+			r.status.LastResponseAt = &sent
+			r.status.ResponseCount++
+			r.mu.Unlock()
 		}
 	}
 }
