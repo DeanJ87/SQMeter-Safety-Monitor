@@ -4,6 +4,8 @@ A standalone **ASCOM Alpaca SafetyMonitor** bridge for the [SQMeter ESP32](https
 
 Runs as a single `.exe` on your N.I.N.A. Windows machine.  No ASCOM COM drivers, no registration, no Visual Studio templates — pure Alpaca over HTTP/UDP.
 
+[Privacy policy](PRIVACY.md)
+
 ---
 
 ## What it does
