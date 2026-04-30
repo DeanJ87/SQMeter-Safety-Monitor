@@ -5,8 +5,13 @@ DATE     ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS  := -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)"
 MAIN     := ./cmd/$(BINARY)
 
+CONFORM_VERSION  := v4.3.0
+CONFORM_DIR      := .conform
+CONFORM_LINUX_URL := https://github.com/ASCOMInitiative/ConformU/releases/download/$(CONFORM_VERSION)/conformu.linux-x64.tar.xz
+
 .PHONY: all build build-windows build-linux build-linux-arm64 test lint fmt vet clean run \
-        service-install service-start service-stop service-uninstall service-status
+        service-install service-start service-stop service-uninstall service-status \
+        conform conform-download
 
 all: build
 
@@ -62,3 +67,15 @@ service-uninstall:
 
 service-status:
 	./bin/$(BINARY) --service status
+
+# Download ConformU for Linux (CI / Linux dev machines).
+# On macOS, install ConformU from https://github.com/ASCOMInitiative/ConformU/releases
+conform-download:
+	@mkdir -p $(CONFORM_DIR)
+	curl -sSL "$(CONFORM_LINUX_URL)" | tar -xJ -C $(CONFORM_DIR)
+	chmod +x $(CONFORM_DIR)/conformu
+
+# Run ASCOM ConformU conformance test against the service + mock SQMeter.
+# Set CONFORM_BIN to override the binary path (auto-detected otherwise).
+conform: build
+	bash scripts/conform.sh
