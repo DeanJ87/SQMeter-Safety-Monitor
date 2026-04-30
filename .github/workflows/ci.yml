@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   lint-and-test:
     name: Lint and Test
@@ -41,9 +44,20 @@ jobs:
         run: go test ./... -race -count=1
 
       - name: Test (coverage)
-        run: go test ./... -coverprofile=coverage.out
+        run: |
+          # Exclude cmd/ — it is process-lifecycle wiring tested via integration,
+          # not unit tests. Coverage is measured over internal/ packages only.
+          go test $(go list ./... | grep -v '/cmd/') \
+            -coverprofile=coverage.out -covermode=atomic
+          go tool cover -func=coverage.out | tail -1
 
-      - name: Upload coverage
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.out
+          fail_ci_if_error: false
+
+      - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:
           name: coverage
@@ -83,3 +97,45 @@ jobs:
         with:
           name: binaries
           path: dist/
+
+  conformance:
+    name: ASCOM Conformance
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build service
+        run: |
+          go build \
+            -ldflags "-X main.version=ci -X main.commit=$GITHUB_SHA -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -o bin/sqmeter-alpaca-safetymonitor \
+            ./cmd/sqmeter-alpaca-safetymonitor
+
+      - name: Download ConformU
+        run: |
+          mkdir -p .conform
+          curl -sSL \
+            "https://github.com/ASCOMInitiative/ConformU/releases/download/v4.3.0/conformu.linux-x64.tar.xz" \
+            | tar -xJ -C .conform
+          chmod +x .conform/conformu
+
+      - name: Run conformance test
+        run: CONFORM_BIN=.conform/conformu bash scripts/conform.sh
+
+      - name: Upload conformance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: conformance-report
+          path: |
+            ConformU/
+            *.log

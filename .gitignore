@@ -39,6 +39,8 @@ dist/
 # UUID state file (generated at runtime)
 device-uuid.txt
 
+# ConformU downloaded binary (Linux)
+.conform/
 # Installer build artefacts
 installer/bin/
 installer/Output/
