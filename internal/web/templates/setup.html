@@ -47,6 +47,13 @@
     color: var(--warn-fg); border-radius: 6px;
     padding: 10px 16px; margin-bottom: 16px;
   }
+  .flash-restart ul {
+    margin: 6px 0 0 18px;
+  }
+  .flash-restart code {
+    font-family: 'Courier New', monospace;
+    color: var(--text);
+  }
   .flash-err {
     background: #3d0a0a; border: 1px solid var(--unsafe-fg);
     color: var(--unsafe-fg); border-radius: 6px;
@@ -169,7 +176,16 @@
 <div class="flash-ok">✓ Configuration saved successfully.</div>
 {{end}}
 {{if .NeedsRestart}}
-<div class="flash-restart">⚠ Some changes (HTTP bind/port, discovery port) require a restart to take effect.</div>
+<div class="flash-restart">
+  ⚠ Saved changes include settings that require a service restart before they take effect.
+  {{if .RestartRequiredFields}}
+  <ul>
+    {{range .RestartRequiredFields}}<li><code>{{.}}</code></li>{{end}}
+  </ul>
+  {{else}}
+  <div>Restart-required fields: <code>ALPACA_HTTP_BIND</code>, <code>ALPACA_HTTP_PORT</code>, <code>ALPACA_DISCOVERY_PORT</code>.</div>
+  {{end}}
+</div>
 {{end}}
 {{if .ErrorMsg}}
 <div class="flash-err">✗ Error: {{.ErrorMsg}}</div>

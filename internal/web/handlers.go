@@ -12,16 +12,24 @@ import (
 
 	"sqmeter-alpaca-safetymonitor/internal/alpaca"
 	"sqmeter-alpaca-safetymonitor/internal/config"
+	"sqmeter-alpaca-safetymonitor/internal/discovery"
 	"sqmeter-alpaca-safetymonitor/internal/state"
 )
 
 // Handler serves the local web dashboard, setup page, and utility endpoints.
 type Handler struct {
-	cfgHolder *config.Holder
-	holder    *state.Holder
-	dash      *template.Template
-	setup     *template.Template
-	startT    time.Time
+	cfgHolder       *config.Holder
+	holder          *state.Holder
+	dash            *template.Template
+	setup           *template.Template
+	startT          time.Time
+	discoveryStatus func() discovery.Status
+}
+
+// WithDiscovery registers a discovery status getter so the handler can expose
+// listener health via the dashboard and /status.json.
+func (h *Handler) WithDiscovery(fn func() discovery.Status) {
+	h.discoveryStatus = fn
 }
 
 // New creates a Handler with embedded templates.
@@ -59,18 +67,22 @@ func (h *Handler) Register(mux *http.ServeMux) {
 // ---------- dashboard --------------------------------------------------------
 
 type DashboardData struct {
-	SQMeterURL    string
-	HTTPPort      int
-	DiscoveryPort int
-	Uptime        string
-	State         state.EvaluatedState
-	Connected     bool
-	Override      string
-	LastPoll      string
-	LastSuccess   string
-	HasData       bool
-	DewMargin     float64
-	WideOpen      bool
+	SQMeterURL        string
+	HTTPPort          int
+	DiscoveryPort     int
+	Uptime            string
+	State             state.EvaluatedState
+	Connected         bool
+	Override          string
+	LastPoll          string
+	LastSuccess       string
+	HasData           bool
+	DewMargin         float64
+	WideOpen          bool
+	DiscoveryRunning  bool
+	DiscoveryHealthy  bool
+	DiscoveryError    string
+	DiscoveryHasStats bool // true when we have a status getter
 }
 
 func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
@@ -100,6 +112,13 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 		DewMargin:     s.Values.Temperature - s.Values.Dewpoint,
 		WideOpen:      config.IsWideOpen(cfg.AlpacaHTTPBind),
 	}
+	if h.discoveryStatus != nil {
+		ds := h.discoveryStatus()
+		data.DiscoveryHasStats = true
+		data.DiscoveryRunning = ds.Running
+		data.DiscoveryHealthy = ds.Healthy
+		data.DiscoveryError = ds.LastError
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := h.dash.Execute(w, data); err != nil {
 		http.Error(w, "template error: "+err.Error(), http.StatusInternalServerError)
@@ -127,21 +146,33 @@ func (h *Handler) StatusJSON(w http.ResponseWriter, r *http.Request) {
 	s := h.holder.Get()
 	cfg := h.cfgHolder.Get()
 	j := alpaca.BuildStatusJSON(s, h.holder.IsConnected(), cfg.ManualOverride)
+
+	type fullStatus struct {
+		alpaca.StatusJSON
+		Discovery *discovery.Status `json:"discovery,omitempty"`
+	}
+	full := fullStatus{StatusJSON: j}
+	if h.discoveryStatus != nil {
+		ds := h.discoveryStatus()
+		full.Discovery = &ds
+	}
+
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	_ = enc.Encode(j)
+	_ = enc.Encode(full)
 }
 
 // ---------- setup page -------------------------------------------------------
 
 type SetupData struct {
-	Config       *config.Config
-	ConfigPath   string
-	WideOpen     bool
-	SavedOK      bool
-	NeedsRestart bool
-	ErrorMsg     string
+	Config                *config.Config
+	ConfigPath            string
+	WideOpen              bool
+	SavedOK               bool
+	NeedsRestart          bool
+	RestartRequiredFields []string
+	ErrorMsg              string
 	// Pre-formatted optional fields (empty string = disabled)
 	SQMMinSafe         string
 	HumidityMaxSafe    string
@@ -150,13 +181,15 @@ type SetupData struct {
 
 func newSetupData(cfgHolder *config.Holder, q url.Values) SetupData {
 	cfg := cfgHolder.Get()
+	restartFields := q["restart_required_fields"]
 	d := SetupData{
-		Config:       cfg,
-		ConfigPath:   cfgHolder.Path(),
-		WideOpen:     config.IsWideOpen(cfg.AlpacaHTTPBind),
-		SavedOK:      q.Get("saved") == "1",
-		NeedsRestart: q.Get("restart") == "1",
-		ErrorMsg:     q.Get("error"),
+		Config:                cfg,
+		ConfigPath:            cfgHolder.Path(),
+		WideOpen:              config.IsWideOpen(cfg.AlpacaHTTPBind),
+		SavedOK:               q.Get("saved") == "1",
+		NeedsRestart:          q.Get("restart") == "1" || len(restartFields) > 0,
+		RestartRequiredFields: restartFields,
+		ErrorMsg:              q.Get("error"),
 	}
 	if cfg.SQMMinSafe != nil {
 		d.SQMMinSafe = fmt.Sprintf("%.2f", *cfg.SQMMinSafe)
@@ -211,11 +244,14 @@ func (h *Handler) PostSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	q := "/setup?saved=1"
-	if config.NeedsRestart(old, &updated) {
-		q += "&restart=1"
+	q := url.Values{"saved": {"1"}}
+	for _, field := range config.RestartRequiredFields(old, &updated) {
+		q.Add("restart_required_fields", field)
 	}
-	http.Redirect(w, r, q, http.StatusSeeOther)
+	if len(q["restart_required_fields"]) > 0 {
+		q.Set("restart", "1")
+	}
+	http.Redirect(w, r, "/setup?"+q.Encode(), http.StatusSeeOther)
 }
 
 // ---------- config JSON API --------------------------------------------------
@@ -242,7 +278,7 @@ func (h *Handler) PutConfigJSON(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	restartNeeded := config.NeedsRestart(old, &updated)
+	restartFields := config.RestartRequiredFields(old, &updated)
 	if err := h.cfgHolder.Update(&updated); err != nil {
 		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusUnprocessableEntity)
 		return
@@ -250,12 +286,19 @@ func (h *Handler) PutConfigJSON(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	type result struct {
-		Config       *config.Config `json:"config"`
-		NeedsRestart bool           `json:"needsRestart"`
+		Config                *config.Config `json:"config"`
+		RestartRequired       bool           `json:"restart_required"`
+		RestartRequiredFields []string       `json:"restart_required_fields"`
+		NeedsRestart          bool           `json:"needsRestart"`
 	}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	_ = enc.Encode(result{Config: h.cfgHolder.Get(), NeedsRestart: restartNeeded})
+	_ = enc.Encode(result{
+		Config:                h.cfgHolder.Get(),
+		RestartRequired:       len(restartFields) > 0,
+		RestartRequiredFields: restartFields,
+		NeedsRestart:          len(restartFields) > 0,
+	})
 }
 
 // ---------- form helpers -----------------------------------------------------

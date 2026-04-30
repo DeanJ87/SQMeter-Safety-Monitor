@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"sqmeter-alpaca-safetymonitor/internal/config"
+	"sqmeter-alpaca-safetymonitor/internal/discovery"
 	"sqmeter-alpaca-safetymonitor/internal/state"
 	"sqmeter-alpaca-safetymonitor/internal/web"
 )
@@ -149,6 +150,36 @@ func TestDashboard_Renders200(t *testing.T) {
 	}
 }
 
+func TestDashboard_WithDiscoveryStatus_Healthy(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	h.WithDiscovery(func() discovery.Status {
+		return discovery.Status{ConfiguredPort: 32227, Running: true, Healthy: true}
+	})
+	w := serve(t, h, http.MethodGet, "/", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("dashboard with discovery: want 200, got %d", w.Code)
+	}
+}
+
+func TestDashboard_WithDiscoveryStatus_Unhealthy(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	h.WithDiscovery(func() discovery.Status {
+		return discovery.Status{
+			ConfiguredPort: 32227,
+			Running:        false,
+			Healthy:        false,
+			LastError:      "listen udp :32227: bind: address already in use",
+		}
+	})
+	w := serve(t, h, http.MethodGet, "/", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("dashboard unhealthy discovery: want 200, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "not running") {
+		t.Error("dashboard: expected 'not running' text for unhealthy discovery")
+	}
+}
+
 func TestDashboard_AliasedFromStatus(t *testing.T) {
 	h, _, _ := newTestWebHandler(t, true, safeEv())
 	w := serve(t, h, http.MethodGet, "/status", "")
@@ -221,6 +252,53 @@ func TestPostSetup_UpdatesConfig(t *testing.T) {
 	}
 }
 
+func TestPostSetup_RestartRequiredFieldsInRedirect(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	form := url.Values{}
+	form.Set("SQMETER_BASE_URL", "http://sqmeter.local")
+	form.Set("ALPACA_HTTP_BIND", "0.0.0.0")
+	form.Set("ALPACA_HTTP_PORT", "22222")
+	form.Set("ALPACA_DISCOVERY_PORT", "32227")
+	form.Set("POLL_INTERVAL_SECONDS", "5")
+	form.Set("STALE_AFTER_SECONDS", "30")
+	form.Set("FAIL_CLOSED", "true")
+	form.Set("CONNECTED_ON_STARTUP", "true")
+	form.Set("CLOUD_COVER_UNSAFE_PERCENT", "80")
+	form.Set("CLOUD_COVER_CAUTION_PERCENT", "50")
+	form.Set("MANUAL_OVERRIDE", "auto")
+	form.Set("LOG_LEVEL", "info")
+
+	w := serve(t, h, http.MethodPost, "/setup", form.Encode())
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("POST /setup: want 303 redirect, got %d", w.Code)
+	}
+
+	loc := w.Header().Get("Location")
+	if !strings.Contains(loc, "restart=1") {
+		t.Fatalf("POST /setup redirect: expected restart flag, got %q", loc)
+	}
+	if !strings.Contains(loc, "restart_required_fields=ALPACA_HTTP_BIND") {
+		t.Fatalf("POST /setup redirect: expected ALPACA_HTTP_BIND field, got %q", loc)
+	}
+	if !strings.Contains(loc, "restart_required_fields=ALPACA_HTTP_PORT") {
+		t.Fatalf("POST /setup redirect: expected ALPACA_HTTP_PORT field, got %q", loc)
+	}
+}
+
+func TestGetSetup_RestartWarningListsFields(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	path := "/setup?saved=1&restart_required_fields=ALPACA_HTTP_BIND&restart_required_fields=ALPACA_HTTP_PORT"
+
+	w := serve(t, h, http.MethodGet, path, "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /setup: want 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "ALPACA_HTTP_BIND") || !strings.Contains(body, "ALPACA_HTTP_PORT") {
+		t.Fatalf("GET /setup warning did not list restart-required fields: %s", body)
+	}
+}
+
 // ---------- /config.json API -------------------------------------------------
 
 func TestGetConfigJSON_ValidJSON(t *testing.T) {
@@ -275,11 +353,124 @@ func TestPutConfigJSON_NeedsRestart_FlaggedInResponse(t *testing.T) {
 	w := serve(t, h, http.MethodPut, "/config.json", body)
 
 	var resp struct {
-		NeedsRestart bool `json:"needsRestart"`
+		RestartRequired       bool     `json:"restart_required"`
+		RestartRequiredFields []string `json:"restart_required_fields"`
+		NeedsRestart          bool     `json:"needsRestart"`
 	}
 	json.NewDecoder(w.Body).Decode(&resp)
+	if !resp.RestartRequired {
+		t.Error("expected restart_required=true when HTTP port changes")
+	}
 	if !resp.NeedsRestart {
-		t.Error("expected needsRestart=true when HTTP port changes")
+		t.Error("expected legacy needsRestart=true when HTTP port changes")
+	}
+	if len(resp.RestartRequiredFields) != 1 || resp.RestartRequiredFields[0] != "ALPACA_HTTP_PORT" {
+		t.Fatalf("restart_required_fields = %#v, want [ALPACA_HTTP_PORT]", resp.RestartRequiredFields)
+	}
+}
+
+func TestPutConfigJSON_NoRestart_ReportsFalseAndEmptyFields(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	body := `{"SQMETER_BASE_URL":"http://put-updated.local"}`
+	w := serve(t, h, http.MethodPut, "/config.json", body)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("PUT /config.json: want 200, got %d - body: %s", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		RestartRequired       bool     `json:"restart_required"`
+		RestartRequiredFields []string `json:"restart_required_fields"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("PUT /config.json: invalid JSON: %v", err)
+	}
+	if resp.RestartRequired {
+		t.Error("expected restart_required=false for hot-reloadable field")
+	}
+	if len(resp.RestartRequiredFields) != 0 {
+		t.Fatalf("restart_required_fields = %#v, want empty", resp.RestartRequiredFields)
+	}
+}
+
+// ---------- /status.json discovery field ------------------------------------
+
+func TestStatusJSON_DiscoveryField_WhenHealthy(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	h.WithDiscovery(func() discovery.Status {
+		return discovery.Status{
+			ConfiguredPort: 32227,
+			Running:        true,
+			Healthy:        true,
+			ResponseCount:  3,
+		}
+	})
+
+	w := serve(t, h, http.MethodGet, "/status.json", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status.json: want 200, got %d", w.Code)
+	}
+
+	var body map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+		t.Fatalf("status.json: invalid JSON: %v", err)
+	}
+
+	disc, ok := body["discovery"].(map[string]any)
+	if !ok {
+		t.Fatalf("status.json: expected discovery field, got %T", body["discovery"])
+	}
+	if disc["running"] != true {
+		t.Errorf("discovery.running: want true, got %v", disc["running"])
+	}
+	if disc["healthy"] != true {
+		t.Errorf("discovery.healthy: want true, got %v", disc["healthy"])
+	}
+	if port, _ := disc["configured_port"].(float64); int(port) != 32227 {
+		t.Errorf("discovery.configured_port: want 32227, got %v", disc["configured_port"])
+	}
+}
+
+func TestStatusJSON_DiscoveryField_WhenUnhealthy(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	h.WithDiscovery(func() discovery.Status {
+		return discovery.Status{
+			ConfiguredPort: 32227,
+			Running:        false,
+			Healthy:        false,
+			LastError:      "listen udp :32227: bind: address already in use",
+		}
+	})
+
+	w := serve(t, h, http.MethodGet, "/status.json", "")
+	var body map[string]any
+	json.NewDecoder(w.Body).Decode(&body)
+
+	disc, ok := body["discovery"].(map[string]any)
+	if !ok {
+		t.Fatalf("status.json: expected discovery field")
+	}
+	if disc["running"] != false {
+		t.Errorf("discovery.running: want false, got %v", disc["running"])
+	}
+	if disc["healthy"] != false {
+		t.Errorf("discovery.healthy: want false, got %v", disc["healthy"])
+	}
+	if disc["last_error"] == "" || disc["last_error"] == nil {
+		t.Error("discovery.last_error: expected non-empty error string")
+	}
+}
+
+func TestStatusJSON_NoDiscoveryField_WhenNotWired(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	// no WithDiscovery call
+
+	w := serve(t, h, http.MethodGet, "/status.json", "")
+	var body map[string]any
+	json.NewDecoder(w.Body).Decode(&body)
+
+	if _, present := body["discovery"]; present {
+		t.Error("status.json: discovery field should be absent when no getter is wired")
 	}
 }
 
