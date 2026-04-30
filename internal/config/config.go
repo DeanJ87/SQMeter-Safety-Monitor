@@ -165,11 +165,25 @@ func validate(cfg *Config) error {
 	return nil
 }
 
+// RestartRequiredFields returns the config fields whose new values require a
+// server restart before they take effect.
+func RestartRequiredFields(old, new_ *Config) []string {
+	fields := make([]string, 0, 3)
+	if old.AlpacaHTTPBind != new_.AlpacaHTTPBind {
+		fields = append(fields, "ALPACA_HTTP_BIND")
+	}
+	if old.AlpacaHTTPPort != new_.AlpacaHTTPPort {
+		fields = append(fields, "ALPACA_HTTP_PORT")
+	}
+	if old.AlpacaDiscoveryPort != new_.AlpacaDiscoveryPort {
+		fields = append(fields, "ALPACA_DISCOVERY_PORT")
+	}
+	return fields
+}
+
 // NeedsRestart returns true if changing from old to new requires a server restart.
 func NeedsRestart(old, new_ *Config) bool {
-	return old.AlpacaHTTPBind != new_.AlpacaHTTPBind ||
-		old.AlpacaHTTPPort != new_.AlpacaHTTPPort ||
-		old.AlpacaDiscoveryPort != new_.AlpacaDiscoveryPort
+	return len(RestartRequiredFields(old, new_)) > 0
 }
 
 // IsWideOpen returns true when the bind address is not loopback-only, meaning
