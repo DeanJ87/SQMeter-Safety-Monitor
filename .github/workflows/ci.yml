@@ -99,6 +99,50 @@ jobs:
           name: binaries
           path: dist/
 
+  windows-smoke:
+    name: Windows Smoke
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test on Windows
+        run: go test ./...
+
+      - name: Build Windows executable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+          $ldflags = "-X main.version=ci -X main.commit=${{ github.sha }} -X main.date=$date"
+          go build -ldflags $ldflags -o dist/sqmeter-alpaca-safetymonitor-windows-amd64.exe ./cmd/sqmeter-alpaca-safetymonitor
+
+      - name: Verify Windows executable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          $exe = ".\dist\sqmeter-alpaca-safetymonitor-windows-amd64.exe"
+
+          $versionOutput = & $exe --version
+          $versionOutput
+          if ($versionOutput -notmatch "ci") {
+            throw "version output did not include the CI version"
+          }
+
+          $configPath = Join-Path $env:RUNNER_TEMP "sqmeter-config.json"
+          & $exe --config $configPath --write-default-config
+          & $exe --config $configPath --check-config
+
   conformance:
     name: ASCOM Conformance
     runs-on: ubuntu-latest
