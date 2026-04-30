@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"net"
 	"strings"
 )
 
@@ -29,8 +28,7 @@ func New(discoveryPort, httpPort int, logger *slog.Logger) *Responder {
 
 // Run starts the UDP listener and blocks until ctx is cancelled.
 func (r *Responder) Run(ctx context.Context) error {
-	addr := &net.UDPAddr{Port: r.discoveryPort}
-	conn, err := net.ListenUDP("udp4", addr)
+	conn, err := listenUDP(r.discoveryPort)
 	if err != nil {
 		return fmt.Errorf("discovery: listen UDP :%d: %w", r.discoveryPort, err)
 	}
