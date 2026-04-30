@@ -38,3 +38,7 @@ dist/
 
 # UUID state file (generated at runtime)
 device-uuid.txt
+
+# Installer build artefacts
+installer/bin/
+installer/Output/
