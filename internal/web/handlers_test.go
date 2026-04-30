@@ -221,6 +221,53 @@ func TestPostSetup_UpdatesConfig(t *testing.T) {
 	}
 }
 
+func TestPostSetup_RestartRequiredFieldsInRedirect(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	form := url.Values{}
+	form.Set("SQMETER_BASE_URL", "http://sqmeter.local")
+	form.Set("ALPACA_HTTP_BIND", "0.0.0.0")
+	form.Set("ALPACA_HTTP_PORT", "22222")
+	form.Set("ALPACA_DISCOVERY_PORT", "32227")
+	form.Set("POLL_INTERVAL_SECONDS", "5")
+	form.Set("STALE_AFTER_SECONDS", "30")
+	form.Set("FAIL_CLOSED", "true")
+	form.Set("CONNECTED_ON_STARTUP", "true")
+	form.Set("CLOUD_COVER_UNSAFE_PERCENT", "80")
+	form.Set("CLOUD_COVER_CAUTION_PERCENT", "50")
+	form.Set("MANUAL_OVERRIDE", "auto")
+	form.Set("LOG_LEVEL", "info")
+
+	w := serve(t, h, http.MethodPost, "/setup", form.Encode())
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("POST /setup: want 303 redirect, got %d", w.Code)
+	}
+
+	loc := w.Header().Get("Location")
+	if !strings.Contains(loc, "restart=1") {
+		t.Fatalf("POST /setup redirect: expected restart flag, got %q", loc)
+	}
+	if !strings.Contains(loc, "restart_required_fields=ALPACA_HTTP_BIND") {
+		t.Fatalf("POST /setup redirect: expected ALPACA_HTTP_BIND field, got %q", loc)
+	}
+	if !strings.Contains(loc, "restart_required_fields=ALPACA_HTTP_PORT") {
+		t.Fatalf("POST /setup redirect: expected ALPACA_HTTP_PORT field, got %q", loc)
+	}
+}
+
+func TestGetSetup_RestartWarningListsFields(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	path := "/setup?saved=1&restart_required_fields=ALPACA_HTTP_BIND&restart_required_fields=ALPACA_HTTP_PORT"
+
+	w := serve(t, h, http.MethodGet, path, "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /setup: want 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "ALPACA_HTTP_BIND") || !strings.Contains(body, "ALPACA_HTTP_PORT") {
+		t.Fatalf("GET /setup warning did not list restart-required fields: %s", body)
+	}
+}
+
 // ---------- /config.json API -------------------------------------------------
 
 func TestGetConfigJSON_ValidJSON(t *testing.T) {
@@ -275,10 +322,42 @@ func TestPutConfigJSON_NeedsRestart_FlaggedInResponse(t *testing.T) {
 	w := serve(t, h, http.MethodPut, "/config.json", body)
 
 	var resp struct {
-		NeedsRestart bool `json:"needsRestart"`
+		RestartRequired       bool     `json:"restart_required"`
+		RestartRequiredFields []string `json:"restart_required_fields"`
+		NeedsRestart          bool     `json:"needsRestart"`
 	}
 	json.NewDecoder(w.Body).Decode(&resp)
+	if !resp.RestartRequired {
+		t.Error("expected restart_required=true when HTTP port changes")
+	}
 	if !resp.NeedsRestart {
-		t.Error("expected needsRestart=true when HTTP port changes")
+		t.Error("expected legacy needsRestart=true when HTTP port changes")
+	}
+	if len(resp.RestartRequiredFields) != 1 || resp.RestartRequiredFields[0] != "ALPACA_HTTP_PORT" {
+		t.Fatalf("restart_required_fields = %#v, want [ALPACA_HTTP_PORT]", resp.RestartRequiredFields)
+	}
+}
+
+func TestPutConfigJSON_NoRestart_ReportsFalseAndEmptyFields(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	body := `{"SQMETER_BASE_URL":"http://put-updated.local"}`
+	w := serve(t, h, http.MethodPut, "/config.json", body)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("PUT /config.json: want 200, got %d - body: %s", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		RestartRequired       bool     `json:"restart_required"`
+		RestartRequiredFields []string `json:"restart_required_fields"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("PUT /config.json: invalid JSON: %v", err)
+	}
+	if resp.RestartRequired {
+		t.Error("expected restart_required=false for hot-reloadable field")
+	}
+	if len(resp.RestartRequiredFields) != 0 {
+		t.Fatalf("restart_required_fields = %#v, want empty", resp.RestartRequiredFields)
 	}
 }

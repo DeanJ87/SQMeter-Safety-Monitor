@@ -3,6 +3,7 @@ package config_test
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -52,6 +53,32 @@ func TestNeedsRestart_BindChange(t *testing.T) {
 	b.AlpacaHTTPBind = "0.0.0.0"
 	if !config.NeedsRestart(a, &b) {
 		t.Error("bind address change should require restart")
+	}
+}
+
+func TestRestartRequiredFields_NamesChangedRestartFields(t *testing.T) {
+	a := config.Defaults()
+	b := *a
+	b.AlpacaHTTPBind = "0.0.0.0"
+	b.AlpacaHTTPPort = 22222
+	b.AlpacaDiscoveryPort = 33333
+
+	got := config.RestartRequiredFields(a, &b)
+	want := []string{"ALPACA_HTTP_BIND", "ALPACA_HTTP_PORT", "ALPACA_DISCOVERY_PORT"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("RestartRequiredFields() = %#v, want %#v", got, want)
+	}
+}
+
+func TestRestartRequiredFields_IgnoresHotReloadableFields(t *testing.T) {
+	a := config.Defaults()
+	b := *a
+	b.SQMeterBaseURL = "http://other.local"
+	b.LogLevel = "debug"
+
+	got := config.RestartRequiredFields(a, &b)
+	if len(got) != 0 {
+		t.Fatalf("RestartRequiredFields() = %#v, want empty", got)
 	}
 }
 
