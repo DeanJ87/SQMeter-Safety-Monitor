@@ -1,5 +1,8 @@
 # sqmeter-alpaca-safetymonitor
 
+[![CI](https://github.com/DeanJ87/SQMeter-Safety-Monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/DeanJ87/SQMeter-Safety-Monitor/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/DeanJ87/SQMeter-Safety-Monitor/branch/main/graph/badge.svg)](https://codecov.io/gh/DeanJ87/SQMeter-Safety-Monitor)
+
 A standalone **ASCOM Alpaca SafetyMonitor** bridge for the [SQMeter ESP32](https://deanj87.github.io/SQMeter/) sky-quality sensor.
 
 Runs as a single `.exe` on your N.I.N.A. Windows machine.  No ASCOM COM drivers, no registration, no Visual Studio templates — pure Alpaca over HTTP/UDP.

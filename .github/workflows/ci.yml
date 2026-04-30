@@ -44,9 +44,20 @@ jobs:
         run: go test ./... -race -count=1
 
       - name: Test (coverage)
-        run: go test ./... -coverprofile=coverage.out
+        run: |
+          # Exclude cmd/ — it is process-lifecycle wiring tested via integration,
+          # not unit tests. Coverage is measured over internal/ packages only.
+          go test $(go list ./... | grep -v '/cmd/') \
+            -coverprofile=coverage.out -covermode=atomic
+          go tool cover -func=coverage.out | tail -1
 
-      - name: Upload coverage
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.out
+          fail_ci_if_error: false
+
+      - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:
           name: coverage
