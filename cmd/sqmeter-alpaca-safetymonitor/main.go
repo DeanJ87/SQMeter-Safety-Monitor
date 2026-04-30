@@ -6,10 +6,13 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -45,7 +48,7 @@ func (p *program) Start(s service.Service) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	p.cancel = cancel
 	p.stopped = make(chan struct{})
-	go p.run(ctx)
+	go p.run(ctx, service.Interactive())
 	return nil
 }
 
@@ -64,8 +67,11 @@ func (p *program) Stop(_ service.Service) error {
 	return nil
 }
 
-func (p *program) run(ctx context.Context) {
+func (p *program) run(ctx context.Context, interactive bool) {
 	defer close(p.stopped)
+
+	_, statErr := os.Stat(p.cfgPath)
+	isFirstRun := os.IsNotExist(statErr)
 
 	cfg, err := config.Load(p.cfgPath)
 	if err != nil {
@@ -115,11 +121,17 @@ func (p *program) run(ctx context.Context) {
 	webHandler.Register(mux)
 
 	srv := &http.Server{
-		Addr:         fmt.Sprintf("%s:%d", cfg.AlpacaHTTPBind, cfg.AlpacaHTTPPort),
 		Handler:      mux,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
+	}
+
+	listenAddr := fmt.Sprintf("%s:%d", cfg.AlpacaHTTPBind, cfg.AlpacaHTTPPort)
+	ln, err := net.Listen("tcp", listenAddr)
+	if err != nil {
+		logger.Error("failed to bind HTTP port", "addr", listenAddr, "error", err)
+		return
 	}
 
 	disc := discovery.New(cfg.AlpacaDiscoveryPort, cfg.AlpacaHTTPPort, logger)
@@ -143,11 +155,17 @@ func (p *program) run(ctx context.Context) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		logger.Info("alpaca HTTP listening", "addr", srv.Addr)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		logger.Info("alpaca HTTP listening", "addr", ln.Addr())
+		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 			logger.Error("HTTP server error", "error", err)
 		}
 	}()
+
+	if interactive && isFirstRun {
+		setupURL := fmt.Sprintf("http://127.0.0.1:%d/setup", cfg.AlpacaHTTPPort)
+		logger.Info("first run detected, opening setup page", "url", setupURL)
+		openBrowser(setupURL)
+	}
 
 	<-ctx.Done()
 	logger.Info("shutting down")
@@ -290,4 +308,17 @@ func newLogger(level string) *slog.Logger {
 		l = slog.LevelInfo
 	}
 	return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: l}))
+}
+
+func openBrowser(url string) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	case "darwin":
+		cmd = exec.Command("open", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	_ = cmd.Start()
 }
