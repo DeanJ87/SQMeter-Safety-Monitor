@@ -9,11 +9,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
+	"github.com/kardianos/service"
 	"sqmeter-alpaca-safetymonitor/internal/alpaca"
 	"sqmeter-alpaca-safetymonitor/internal/config"
 	"sqmeter-alpaca-safetymonitor/internal/discovery"
@@ -29,39 +31,45 @@ var (
 	date    = "unknown"
 )
 
-func main() {
-	var (
-		configPath         = flag.String("config", "config.json", "path to JSON config file (created if absent)")
-		uuidPath           = flag.String("uuid-file", "device-uuid.txt", "path to persist stable device UUID")
-		showVersion        = flag.Bool("version", false, "print version and exit")
-		writeDefaultConfig = flag.Bool("write-default-config", false, "write default config to --config path and exit")
-		checkConfig        = flag.Bool("check-config", false, "validate config and exit")
-	)
-	flag.Parse()
+// ---------- service wrapper --------------------------------------------------
 
-	if *showVersion {
-		fmt.Printf("sqmeter-alpaca-safetymonitor %s (commit %s, built %s)\n", version, commit, date)
-		return
+type program struct {
+	cfgPath  string
+	uuidPath string
+
+	cancel  context.CancelFunc
+	stopped chan struct{}
+}
+
+func (p *program) Start(s service.Service) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	p.cancel = cancel
+	p.stopped = make(chan struct{})
+	go p.run(ctx)
+	return nil
+}
+
+func (p *program) Stop(_ service.Service) error {
+	if p.cancel != nil {
+		p.cancel()
 	}
-
-	if *writeDefaultConfig {
-		if err := config.SaveDefault(*configPath); err != nil {
-			fmt.Fprintf(os.Stderr, "error writing default config: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Printf("default config written to %s\n", *configPath)
-		return
+	if p.stopped == nil {
+		return nil
 	}
+	select {
+	case <-p.stopped:
+	case <-time.After(10 * time.Second):
+		return fmt.Errorf("service did not stop within timeout")
+	}
+	return nil
+}
 
-	cfg, err := config.Load(*configPath)
+func (p *program) run(ctx context.Context) {
+	defer close(p.stopped)
+
+	cfg, err := config.Load(p.cfgPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "config error: %v\n", err)
-		os.Exit(1)
-	}
-
-	if *checkConfig {
-		fmt.Printf("config OK (SQMeter=%s, HTTP port=%d, discovery port=%d)\n",
-			cfg.SQMeterBaseURL, cfg.AlpacaHTTPPort, cfg.AlpacaDiscoveryPort)
 		return
 	}
 
@@ -83,22 +91,21 @@ func main() {
 		logger.Warn("MANUAL_OVERRIDE=force_safe — all safety rules are bypassed")
 	}
 
-	cfgHolder := config.NewHolder(cfg, *configPath)
+	cfgHolder := config.NewHolder(cfg, p.cfgPath)
 
-	deviceUUID, err := loadOrCreateUUID(*uuidPath)
+	deviceUUID, err := loadOrCreateUUID(p.uuidPath)
 	if err != nil {
 		logger.Warn("could not persist device UUID, using ephemeral UUID", "error", err)
 	}
 	logger.Info("device UUID", "uuid", deviceUUID)
 
 	stateHolder := state.NewHolder(cfg.ConnectedOnStartup)
-
 	pol := poller.New(cfgHolder, stateHolder, logger)
 
 	webHandler, err := web.New(cfgHolder, stateHolder)
 	if err != nil {
 		logger.Error("failed to initialise web handler", "error", err)
-		os.Exit(1)
+		return
 	}
 
 	alpacaHandler := alpaca.New(cfgHolder, stateHolder, deviceUUID, version, pol.PollNow)
@@ -116,12 +123,6 @@ func main() {
 	}
 
 	disc := discovery.New(cfg.AlpacaDiscoveryPort, cfg.AlpacaHTTPPort, logger)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 
 	var wg sync.WaitGroup
 
@@ -145,16 +146,11 @@ func main() {
 		logger.Info("alpaca HTTP listening", "addr", srv.Addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("HTTP server error", "error", err)
-			cancel()
 		}
 	}()
 
-	select {
-	case s := <-sig:
-		logger.Info("received signal, shutting down", "signal", s)
-	case <-ctx.Done():
-	}
-	cancel()
+	<-ctx.Done()
+	logger.Info("shutting down")
 
 	shutCtx, shutCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutCancel()
@@ -164,6 +160,93 @@ func main() {
 
 	wg.Wait()
 	logger.Info("stopped")
+}
+
+// ---------- entry point ------------------------------------------------------
+
+func main() {
+	// Default config paths to the directory containing the executable so the
+	// service always finds its config regardless of working directory.
+	exe, _ := os.Executable()
+	exeDir := filepath.Dir(exe)
+
+	var (
+		cfgPath            = flag.String("config", filepath.Join(exeDir, "config.json"), "path to JSON config file")
+		uuidPath           = flag.String("uuid-file", filepath.Join(exeDir, "device-uuid.txt"), "path to persist stable device UUID")
+		svcCmd             = flag.String("service", "", "manage the system service: install|uninstall|start|stop|status")
+		showVersion        = flag.Bool("version", false, "print version and exit")
+		writeDefaultConfig = flag.Bool("write-default-config", false, "write default config to --config path and exit")
+		checkConfig        = flag.Bool("check-config", false, "validate config and exit")
+	)
+	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("sqmeter-alpaca-safetymonitor %s (commit %s, built %s)\n", version, commit, date)
+		return
+	}
+
+	if *writeDefaultConfig {
+		if err := config.SaveDefault(*cfgPath); err != nil {
+			fmt.Fprintf(os.Stderr, "error writing default config: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("default config written to %s\n", *cfgPath)
+		return
+	}
+
+	if *checkConfig {
+		cfg, err := config.Load(*cfgPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "config error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("config OK (SQMeter=%s, HTTP port=%d, discovery port=%d)\n",
+			cfg.SQMeterBaseURL, cfg.AlpacaHTTPPort, cfg.AlpacaDiscoveryPort)
+		return
+	}
+
+	prg := &program{
+		cfgPath:  *cfgPath,
+		uuidPath: *uuidPath,
+	}
+
+	svcConfig := &service.Config{
+		Name:        "SQMeterAlpacaSafetyMonitor",
+		DisplayName: "SQMeter Alpaca SafetyMonitor",
+		Description: "ASCOM Alpaca SafetyMonitor bridge for SQMeter ESP32. Responds to Alpaca discovery on UDP port 32227.",
+	}
+
+	s, err := service.New(prg, svcConfig)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	if *svcCmd != "" {
+		if err := service.Control(s, *svcCmd); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		fmt.Printf("service %s: OK\n", *svcCmd)
+		return
+	}
+
+	// In interactive mode (terminal), forward OS signals to service Stop so
+	// Ctrl-C triggers a clean shutdown.
+	if service.Interactive() {
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+		go func() {
+			sig := <-sigCh
+			fmt.Fprintf(os.Stderr, "\nreceived %s, stopping...\n", sig)
+			s.Stop() //nolint:errcheck
+		}()
+	}
+
+	if err := s.Run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }
 
 // ---------- helpers ----------------------------------------------------------
