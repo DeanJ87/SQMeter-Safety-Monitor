@@ -25,37 +25,12 @@ func TestDiscovery_RespondsWithAlpacaPort(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	started := make(chan struct{})
+	errCh := make(chan error, 1)
 	go func() {
-		// Signal after a short delay so the listener is up.
-		time.Sleep(30 * time.Millisecond)
-		close(started)
-		resp.Run(ctx)
+		errCh <- resp.Run(ctx)
 	}()
-	<-started
 
-	// Send discovery probe.
-	conn, err := net.Dial("udp4", "127.0.0.1:32277")
-	if err != nil {
-		t.Fatalf("dial UDP: %v", err)
-	}
-	defer conn.Close()
-
-	conn.SetDeadline(time.Now().Add(2 * time.Second))
-	if _, err := conn.Write([]byte("alpacadiscovery1")); err != nil {
-		t.Fatalf("write probe: %v", err)
-	}
-
-	buf := make([]byte, 256)
-	n, err := conn.Read(buf)
-	if err != nil {
-		t.Fatalf("read response: %v", err)
-	}
-
-	var reply map[string]int
-	if err := json.Unmarshal(buf[:n], &reply); err != nil {
-		t.Fatalf("parse response %q: %v", buf[:n], err)
-	}
+	reply := waitForDiscoveryReply(t, "127.0.0.1:32277", errCh)
 
 	if got := reply["AlpacaPort"]; got != httpPort {
 		t.Errorf("AlpacaPort: want %d, got %d", httpPort, got)
@@ -70,11 +45,11 @@ func TestDiscovery_IgnoresUnrelatedPackets(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	errCh := make(chan error, 1)
 	go func() {
-		time.Sleep(30 * time.Millisecond)
-		resp.Run(ctx)
+		errCh <- resp.Run(ctx)
 	}()
-	time.Sleep(60 * time.Millisecond)
+	waitForDiscoveryReply(t, "127.0.0.1:32278", errCh)
 
 	conn, err := net.Dial("udp4", "127.0.0.1:32278")
 	if err != nil {
@@ -91,4 +66,54 @@ func TestDiscovery_IgnoresUnrelatedPackets(t *testing.T) {
 		t.Error("expected no response to unrelated packet, but got one")
 	}
 	// A deadline/timeout error is expected and correct here.
+}
+
+func waitForDiscoveryReply(t *testing.T, addr string, errCh <-chan error) map[string]int {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		select {
+		case err := <-errCh:
+			t.Fatalf("discovery responder exited before it was ready: %v", err)
+		default:
+		}
+
+		reply, err := readDiscoveryReply(addr, 100*time.Millisecond)
+		if err == nil {
+			return reply
+		}
+		lastErr = err
+	}
+
+	t.Fatalf("timed out waiting for discovery reply: %v", lastErr)
+	return nil
+}
+
+func readDiscoveryReply(addr string, timeout time.Duration) (map[string]int, error) {
+	conn, err := net.Dial("udp4", addr)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
+		return nil, err
+	}
+	if _, err := conn.Write([]byte("alpacadiscovery1")); err != nil {
+		return nil, err
+	}
+
+	buf := make([]byte, 256)
+	n, err := conn.Read(buf)
+	if err != nil {
+		return nil, err
+	}
+
+	var reply map[string]int
+	if err := json.Unmarshal(buf[:n], &reply); err != nil {
+		return nil, err
+	}
+	return reply, nil
 }
