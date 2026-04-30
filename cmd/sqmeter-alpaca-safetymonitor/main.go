@@ -116,6 +116,9 @@ func (p *program) run(ctx context.Context, interactive bool) {
 
 	alpacaHandler := alpaca.New(cfgHolder, stateHolder, deviceUUID, version, pol.PollNow)
 
+	disc := discovery.New(cfg.AlpacaDiscoveryPort, cfg.AlpacaHTTPPort, logger)
+	webHandler.WithDiscovery(disc.GetStatus)
+
 	mux := http.NewServeMux()
 	alpacaHandler.Register(mux)
 	webHandler.Register(mux)
@@ -133,8 +136,6 @@ func (p *program) run(ctx context.Context, interactive bool) {
 		logger.Error("failed to bind HTTP port", "addr", listenAddr, "error", err)
 		return
 	}
-
-	disc := discovery.New(cfg.AlpacaDiscoveryPort, cfg.AlpacaHTTPPort, logger)
 
 	var wg sync.WaitGroup
 

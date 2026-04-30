@@ -12,16 +12,24 @@ import (
 
 	"sqmeter-alpaca-safetymonitor/internal/alpaca"
 	"sqmeter-alpaca-safetymonitor/internal/config"
+	"sqmeter-alpaca-safetymonitor/internal/discovery"
 	"sqmeter-alpaca-safetymonitor/internal/state"
 )
 
 // Handler serves the local web dashboard, setup page, and utility endpoints.
 type Handler struct {
-	cfgHolder *config.Holder
-	holder    *state.Holder
-	dash      *template.Template
-	setup     *template.Template
-	startT    time.Time
+	cfgHolder       *config.Holder
+	holder          *state.Holder
+	dash            *template.Template
+	setup           *template.Template
+	startT          time.Time
+	discoveryStatus func() discovery.Status
+}
+
+// WithDiscovery registers a discovery status getter so the handler can expose
+// listener health via the dashboard and /status.json.
+func (h *Handler) WithDiscovery(fn func() discovery.Status) {
+	h.discoveryStatus = fn
 }
 
 // New creates a Handler with embedded templates.
@@ -58,18 +66,22 @@ func (h *Handler) Register(mux *http.ServeMux) {
 // ---------- dashboard --------------------------------------------------------
 
 type DashboardData struct {
-	SQMeterURL    string
-	HTTPPort      int
-	DiscoveryPort int
-	Uptime        string
-	State         state.EvaluatedState
-	Connected     bool
-	Override      string
-	LastPoll      string
-	LastSuccess   string
-	HasData       bool
-	DewMargin     float64
-	WideOpen      bool
+	SQMeterURL        string
+	HTTPPort          int
+	DiscoveryPort     int
+	Uptime            string
+	State             state.EvaluatedState
+	Connected         bool
+	Override          string
+	LastPoll          string
+	LastSuccess       string
+	HasData           bool
+	DewMargin         float64
+	WideOpen          bool
+	DiscoveryRunning  bool
+	DiscoveryHealthy  bool
+	DiscoveryError    string
+	DiscoveryHasStats bool // true when we have a status getter
 }
 
 func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
@@ -99,6 +111,13 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 		DewMargin:     s.Values.Temperature - s.Values.Dewpoint,
 		WideOpen:      config.IsWideOpen(cfg.AlpacaHTTPBind),
 	}
+	if h.discoveryStatus != nil {
+		ds := h.discoveryStatus()
+		data.DiscoveryHasStats = true
+		data.DiscoveryRunning = ds.Running
+		data.DiscoveryHealthy = ds.Healthy
+		data.DiscoveryError = ds.LastError
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := h.dash.Execute(w, data); err != nil {
 		http.Error(w, "template error: "+err.Error(), http.StatusInternalServerError)
@@ -126,10 +145,21 @@ func (h *Handler) StatusJSON(w http.ResponseWriter, r *http.Request) {
 	s := h.holder.Get()
 	cfg := h.cfgHolder.Get()
 	j := alpaca.BuildStatusJSON(s, h.holder.IsConnected(), cfg.ManualOverride)
+
+	type fullStatus struct {
+		alpaca.StatusJSON
+		Discovery *discovery.Status `json:"discovery,omitempty"`
+	}
+	full := fullStatus{StatusJSON: j}
+	if h.discoveryStatus != nil {
+		ds := h.discoveryStatus()
+		full.Discovery = &ds
+	}
+
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	_ = enc.Encode(j)
+	_ = enc.Encode(full)
 }
 
 // ---------- setup page -------------------------------------------------------

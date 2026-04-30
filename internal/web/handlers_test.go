@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"sqmeter-alpaca-safetymonitor/internal/config"
+	"sqmeter-alpaca-safetymonitor/internal/discovery"
 	"sqmeter-alpaca-safetymonitor/internal/state"
 	"sqmeter-alpaca-safetymonitor/internal/web"
 )
@@ -280,5 +281,86 @@ func TestPutConfigJSON_NeedsRestart_FlaggedInResponse(t *testing.T) {
 	json.NewDecoder(w.Body).Decode(&resp)
 	if !resp.NeedsRestart {
 		t.Error("expected needsRestart=true when HTTP port changes")
+	}
+}
+
+// ---------- /status.json discovery field ------------------------------------
+
+func TestStatusJSON_DiscoveryField_WhenHealthy(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	h.WithDiscovery(func() discovery.Status {
+		return discovery.Status{
+			ConfiguredPort: 32227,
+			Running:        true,
+			Healthy:        true,
+			ResponseCount:  3,
+		}
+	})
+
+	w := serve(t, h, http.MethodGet, "/status.json", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status.json: want 200, got %d", w.Code)
+	}
+
+	var body map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+		t.Fatalf("status.json: invalid JSON: %v", err)
+	}
+
+	disc, ok := body["discovery"].(map[string]any)
+	if !ok {
+		t.Fatalf("status.json: expected discovery field, got %T", body["discovery"])
+	}
+	if disc["running"] != true {
+		t.Errorf("discovery.running: want true, got %v", disc["running"])
+	}
+	if disc["healthy"] != true {
+		t.Errorf("discovery.healthy: want true, got %v", disc["healthy"])
+	}
+	if port, _ := disc["configured_port"].(float64); int(port) != 32227 {
+		t.Errorf("discovery.configured_port: want 32227, got %v", disc["configured_port"])
+	}
+}
+
+func TestStatusJSON_DiscoveryField_WhenUnhealthy(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	h.WithDiscovery(func() discovery.Status {
+		return discovery.Status{
+			ConfiguredPort: 32227,
+			Running:        false,
+			Healthy:        false,
+			LastError:      "listen udp :32227: bind: address already in use",
+		}
+	})
+
+	w := serve(t, h, http.MethodGet, "/status.json", "")
+	var body map[string]any
+	json.NewDecoder(w.Body).Decode(&body)
+
+	disc, ok := body["discovery"].(map[string]any)
+	if !ok {
+		t.Fatalf("status.json: expected discovery field")
+	}
+	if disc["running"] != false {
+		t.Errorf("discovery.running: want false, got %v", disc["running"])
+	}
+	if disc["healthy"] != false {
+		t.Errorf("discovery.healthy: want false, got %v", disc["healthy"])
+	}
+	if disc["last_error"] == "" || disc["last_error"] == nil {
+		t.Error("discovery.last_error: expected non-empty error string")
+	}
+}
+
+func TestStatusJSON_NoDiscoveryField_WhenNotWired(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	// no WithDiscovery call
+
+	w := serve(t, h, http.MethodGet, "/status.json", "")
+	var body map[string]any
+	json.NewDecoder(w.Body).Decode(&body)
+
+	if _, present := body["discovery"]; present {
+		t.Error("status.json: discovery field should be absent when no getter is wired")
 	}
 }
