@@ -1,0 +1,35 @@
+# Codecov configuration
+# https://docs.codecov.com/docs/codecov-yaml
+
+codecov:
+  require_ci_to_pass: false  # Show Codecov status without waiting for other checks
+
+comment:
+  layout: "diff, flags, files"
+  behavior: default
+  require_changes: true   # Only comment when coverage changes
+  require_base: false
+  require_head: true
+  hide_project_coverage: false
+
+coverage:
+  status:
+    project:
+      default:
+        target: 80%       # Required coverage value
+        threshold: 1%     # Allow 1% leniency in hitting the target
+        base: auto
+        if_ci_failed: error
+    
+    patch:
+      default:
+        target: 80%       # Require 80% coverage on new code
+        threshold: 1%
+        if_ci_failed: error
+
+# Ignore paths (don't include in coverage calculation)
+ignore:
+  - "cmd/**/*"           # Exclude cmd/ from coverage (main.go, process wiring)
+  - "**/*_test.go"       # Exclude test files themselves
+  - "**/mock*.go"        # Exclude mock files
+  - "**/testdata/**"     # Exclude test data
