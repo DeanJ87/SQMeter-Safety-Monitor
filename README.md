@@ -52,7 +52,7 @@ Copy `.env.example` and rename it to set environment variables, **or** create a 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `SQMETER_BASE_URL` | *required* | Base URL of your SQMeter device |
-| `ALPACA_HTTP_BIND` | `0.0.0.0` | HTTP bind address |
+| `ALPACA_HTTP_BIND` | `127.0.0.1` | HTTP bind address |
 | `ALPACA_HTTP_PORT` | `11111` | HTTP port for Alpaca API + web UI |
 | `ALPACA_DISCOVERY_PORT` | `32227` | UDP port for Alpaca discovery |
 | `POLL_INTERVAL_SECONDS` | `5` | How often to poll the SQMeter |
@@ -69,6 +69,8 @@ Copy `.env.example` and rename it to set environment variables, **or** create a 
 | `DEWPOINT_MARGIN_MIN_C` | *(off)* | Unsafe if temp−dewpoint < this (°C) |
 | `MANUAL_OVERRIDE` | `auto` | `auto` \| `force_safe` \| `force_unsafe` |
 | `LOG_LEVEL` | `info` | `debug` \| `info` \| `warn` \| `error` |
+
+Binding `ALPACA_HTTP_BIND` to `0.0.0.0` exposes the service to the network. Only use it on a trusted LAN or behind firewall controls.
 
 Environment variables always override the config file.
 
