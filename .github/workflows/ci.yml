@@ -130,13 +130,13 @@ jobs:
           chmod +x .conform/conformu
 
       - name: Run conformance test
-        run: CONFORM_BIN=.conform/conformu bash scripts/conform.sh
-
+        run: |
+          CONFORM_BIN=.conform/conformu bash scripts/conform.sh 2>&1 | tee conformance.log
+          
       - name: Upload conformance report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: conformance-report
-          path: |
-            ConformU/
-            *.log
+          path: conformance.log
+          if-no-files-found: warn
