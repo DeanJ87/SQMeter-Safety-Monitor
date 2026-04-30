@@ -282,3 +282,89 @@ func TestPutConfigJSON_NeedsRestart_FlaggedInResponse(t *testing.T) {
 		t.Error("expected needsRestart=true when HTTP port changes")
 	}
 }
+
+// ---------- POST /api/test-sqmeter ------------------------------------------
+
+func TestTestSQMeter_ReachableURL(t *testing.T) {
+	// Spin up a small HTTP server to act as the SQMeter.
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer backend.Close()
+
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	body := `{"url":"` + backend.URL + `"}`
+	w := serve(t, h, http.MethodPost, "/api/test-sqmeter", body)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("test-sqmeter: want 200, got %d — body: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		OK      bool   `json:"ok"`
+		Message string `json:"message"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("test-sqmeter: invalid JSON: %v", err)
+	}
+	if !resp.OK {
+		t.Errorf("test-sqmeter: want ok=true for reachable URL, got false; message: %s", resp.Message)
+	}
+}
+
+func TestTestSQMeter_UnreachableURL(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	// Use an address that is not listening — connect should fail quickly.
+	body := `{"url":"http://127.0.0.1:19999"}`
+	w := serve(t, h, http.MethodPost, "/api/test-sqmeter", body)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("test-sqmeter: want 200 envelope, got %d", w.Code)
+	}
+	var resp struct {
+		OK      bool   `json:"ok"`
+		Message string `json:"message"`
+	}
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp.OK {
+		t.Error("test-sqmeter: want ok=false for unreachable URL, got true")
+	}
+	if resp.Message == "" {
+		t.Error("test-sqmeter: want non-empty failure message")
+	}
+}
+
+func TestTestSQMeter_FallsBackToConfiguredURL(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer backend.Close()
+
+	h, cfgHolder, _ := newTestWebHandler(t, true, safeEv())
+	cfg := *cfgHolder.Get()
+	cfg.SQMeterBaseURL = backend.URL
+	cfgHolder.Update(&cfg) //nolint:errcheck
+
+	// Send empty JSON body — handler should fall back to configured URL.
+	w := serve(t, h, http.MethodPost, "/api/test-sqmeter", `{}`)
+	var resp struct {
+		OK bool `json:"ok"`
+	}
+	json.NewDecoder(w.Body).Decode(&resp)
+	if !resp.OK {
+		t.Error("test-sqmeter: want ok=true when falling back to configured URL")
+	}
+}
+
+func TestTestSQMeter_InvalidScheme(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	body := `{"url":"ftp://192.168.1.1"}`
+	w := serve(t, h, http.MethodPost, "/api/test-sqmeter", body)
+
+	var resp struct {
+		OK bool `json:"ok"`
+	}
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp.OK {
+		t.Error("test-sqmeter: want ok=false for non-http(s) scheme")
+	}
+}

@@ -53,6 +53,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /setup", h.PostSetup)
 	mux.HandleFunc("GET /config.json", h.GetConfigJSON)
 	mux.HandleFunc("PUT /config.json", h.PutConfigJSON)
+	mux.HandleFunc("POST /api/test-sqmeter", h.TestSQMeter)
 }
 
 // ---------- dashboard --------------------------------------------------------
@@ -290,4 +291,65 @@ func formOptFloat(r *http.Request, key string, dst **float64) {
 	if f, err := strconv.ParseFloat(v, 64); err == nil {
 		*dst = &f
 	}
+}
+
+// ---------- SQMeter connection test -----------------------------------------
+
+// TestSQMeter handles POST /api/test-sqmeter.
+// It accepts {"url":"http://..."} and probes the given URL with a short
+// timeout, returning {"ok":true/false,"message":"..."}.
+// The URL must use http or https. A missing or empty url field falls back to
+// the currently configured SQMeterBaseURL.
+func (h *Handler) TestSQMeter(w http.ResponseWriter, r *http.Request) {
+	type request struct {
+		URL string `json:"url"`
+	}
+	type response struct {
+		OK      bool   `json:"ok"`
+		Message string `json:"message"`
+	}
+	writeResult := func(ok bool, msg string) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		enc := json.NewEncoder(w)
+		_ = enc.Encode(response{OK: ok, Message: msg})
+	}
+
+	body, err := io.ReadAll(io.LimitReader(r.Body, 4096))
+	if err != nil {
+		writeResult(false, "failed to read request body")
+		return
+	}
+
+	var req request
+	if len(body) > 0 {
+		if err := json.Unmarshal(body, &req); err != nil {
+			writeResult(false, "invalid JSON: "+err.Error())
+			return
+		}
+	}
+
+	target := req.URL
+	if target == "" {
+		target = h.cfgHolder.Get().SQMeterBaseURL
+	}
+	if target == "" {
+		writeResult(false, "no URL provided and no SQMeter URL is configured")
+		return
+	}
+
+	parsed, err := url.Parse(target)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		writeResult(false, "URL must use http or https")
+		return
+	}
+
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get(target)
+	if err != nil {
+		writeResult(false, "connection failed: "+err.Error())
+		return
+	}
+	resp.Body.Close()
+
+	writeResult(true, fmt.Sprintf("connected (HTTP %d)", resp.StatusCode))
 }
