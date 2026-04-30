@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   release:
-    name: Release
+    name: Release (binaries)
     runs-on: ubuntu-latest
 
     steps:
@@ -37,3 +37,48 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+
+  installer-windows:
+    name: Windows Installer
+    runs-on: windows-latest
+    needs: release
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build Windows binary
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          go build \
+            -ldflags "-X main.version=${VERSION} -X main.commit=${GITHUB_SHA} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -o installer/bin/sqmeter-alpaca-safetymonitor.exe \
+            ./cmd/sqmeter-alpaca-safetymonitor
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        shell: cmd
+        run: |
+          set VERSION=%GITHUB_REF_NAME%
+          set VERSION=%VERSION:v=%
+          "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=%VERSION% installer\setup.iss
+
+      - name: Upload installer to release
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          gh release upload "${TAG}" \
+            "installer/Output/sqmeter-alpaca-safetymonitor-setup-${VERSION}.exe" \
+            --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
