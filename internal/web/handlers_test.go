@@ -591,3 +591,133 @@ func TestTestSQMeter_InvalidJSON(t *testing.T) {
 		t.Error("test-sqmeter: want ok=false for malformed JSON body")
 	}
 }
+
+// ---------- GET /api/diagnostics ---------------------------------------------
+
+func TestDiagnostics_BasicFields(t *testing.T) {
+	h, cfgHolder, _ := newTestWebHandler(t, true, safeEv())
+	h.WithVersion("test-version")
+	cfg := *cfgHolder.Get()
+	cfg.SQMeterBaseURL = "http://192.168.1.100"
+	cfg.AlpacaHTTPPort = 11111
+	cfg.AlpacaDiscoveryPort = 32227
+	cfgHolder.Update(&cfg) //nolint:errcheck
+
+	w := serve(t, h, http.MethodGet, "/api/diagnostics", "")
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("diagnostics: want 200, got %d", w.Code)
+	}
+
+	var report web.DiagnosticsReport
+	if err := json.NewDecoder(w.Body).Decode(&report); err != nil {
+		t.Fatalf("diagnostics: decode failed: %v", err)
+	}
+
+	if report.Version != "test-version" {
+		t.Errorf("diagnostics.version: want %q, got %q", "test-version", report.Version)
+	}
+	if report.Timestamp == "" {
+		t.Error("diagnostics.timestamp: want non-empty")
+	}
+	if report.Uptime == "" {
+		t.Error("diagnostics.uptime: want non-empty")
+	}
+	if report.Config.SQMeterURL != "http://192.168.1.100" {
+		t.Errorf("diagnostics.config.sqmeterUrl: want %q, got %q", "http://192.168.1.100", report.Config.SQMeterURL)
+	}
+	if report.Config.HTTPPort != 11111 {
+		t.Errorf("diagnostics.config.httpPort: want 11111, got %d", report.Config.HTTPPort)
+	}
+	if report.Config.DiscoveryPort != 32227 {
+		t.Errorf("diagnostics.config.discoveryPort: want 32227, got %d", report.Config.DiscoveryPort)
+	}
+	if !report.Safety.Connected {
+		t.Error("diagnostics.safety.connected: want true")
+	}
+	if !report.Safety.IsSafe {
+		t.Error("diagnostics.safety.isSafe: want true")
+	}
+	if report.Safety.Reasons == nil {
+		t.Error("diagnostics.safety.reasons: want non-nil slice")
+	}
+}
+
+func TestDiagnostics_UnsafeState(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, unsafeEv())
+
+	w := serve(t, h, http.MethodGet, "/api/diagnostics", "")
+
+	var report web.DiagnosticsReport
+	json.NewDecoder(w.Body).Decode(&report) //nolint:errcheck
+
+	if report.Safety.IsSafe {
+		t.Error("diagnostics.safety.isSafe: want false for unsafe state")
+	}
+	if len(report.Safety.Reasons) == 0 {
+		t.Error("diagnostics.safety.reasons: want at least one reason for unsafe state")
+	}
+}
+
+func TestDiagnostics_WithDiscovery(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	ds := discovery.Status{
+		ConfiguredPort: 32227,
+		Running:        true,
+		Healthy:        true,
+		ResponseCount:  3,
+	}
+	h.WithDiscovery(func() discovery.Status { return ds })
+
+	w := serve(t, h, http.MethodGet, "/api/diagnostics", "")
+
+	var report web.DiagnosticsReport
+	json.NewDecoder(w.Body).Decode(&report) //nolint:errcheck
+
+	if report.Discovery == nil {
+		t.Fatal("diagnostics.discovery: want non-nil when getter is wired")
+	}
+	if !report.Discovery.Running {
+		t.Error("diagnostics.discovery.running: want true")
+	}
+	if !report.Discovery.Healthy {
+		t.Error("diagnostics.discovery.healthy: want true")
+	}
+	if report.Discovery.ResponseCount != 3 {
+		t.Errorf("diagnostics.discovery.responseCount: want 3, got %d", report.Discovery.ResponseCount)
+	}
+}
+
+func TestDiagnostics_WithoutDiscovery(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	// no WithDiscovery call
+
+	w := serve(t, h, http.MethodGet, "/api/diagnostics", "")
+
+	var report web.DiagnosticsReport
+	json.NewDecoder(w.Body).Decode(&report) //nolint:errcheck
+
+	if report.Discovery != nil {
+		t.Error("diagnostics.discovery: want nil when no getter is wired")
+	}
+}
+
+func TestDiagnostics_PollerTimestamps(t *testing.T) {
+	ev := safeEv()
+	ev.LastError = "timeout connecting to device"
+	h, _, _ := newTestWebHandler(t, true, ev)
+
+	w := serve(t, h, http.MethodGet, "/api/diagnostics", "")
+
+	var report web.DiagnosticsReport
+	json.NewDecoder(w.Body).Decode(&report) //nolint:errcheck
+
+	if report.Poller.LastPollUTC == "" {
+		t.Error("diagnostics.poller.lastPollUtc: want non-empty")
+	}
+	if report.Poller.LastError == nil {
+		t.Error("diagnostics.poller.lastError: want non-nil when state has error")
+	} else if *report.Poller.LastError != "timeout connecting to device" {
+		t.Errorf("diagnostics.poller.lastError: want %q, got %q", "timeout connecting to device", *report.Poller.LastError)
+	}
+}

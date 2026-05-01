@@ -25,12 +25,18 @@ type Handler struct {
 	setup           *template.Template
 	startT          time.Time
 	discoveryStatus func() discovery.Status
+	version         string
 }
 
 // WithDiscovery registers a discovery status getter so the handler can expose
 // listener health via the dashboard and /status.json.
 func (h *Handler) WithDiscovery(fn func() discovery.Status) {
 	h.discoveryStatus = fn
+}
+
+// WithVersion sets the version string included in diagnostics output.
+func (h *Handler) WithVersion(v string) {
+	h.version = v
 }
 
 // New creates a Handler with embedded templates.
@@ -63,6 +69,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /config.json", h.GetConfigJSON)
 	mux.HandleFunc("PUT /config.json", h.PutConfigJSON)
 	mux.HandleFunc("POST /api/test-sqmeter", h.TestSQMeter)
+	mux.HandleFunc("GET /api/diagnostics", h.Diagnostics)
 }
 
 // ---------- dashboard --------------------------------------------------------
@@ -335,6 +342,113 @@ func formOptFloat(r *http.Request, key string, dst **float64) {
 	if f, err := strconv.ParseFloat(v, 64); err == nil {
 		*dst = &f
 	}
+}
+
+// ---------- diagnostics ------------------------------------------------------
+
+// DiagnosticsReport is the payload returned by GET /api/diagnostics.
+// It aggregates service health, configuration, and discovery status into a
+// single snapshot that is safe to paste into a GitHub issue.
+type DiagnosticsReport struct {
+	Version   string `json:"version"`
+	Timestamp string `json:"timestamp"`
+	Uptime    string `json:"uptime"`
+
+	Config DiagnosticsConfig `json:"config"`
+
+	// Discovery is nil when no discovery getter has been registered.
+	Discovery *discovery.Status `json:"discovery,omitempty"`
+
+	Poller DiagnosticsPoller `json:"poller"`
+	Safety DiagnosticsSafety `json:"safety"`
+}
+
+type DiagnosticsConfig struct {
+	Path          string `json:"path"`
+	SQMeterURL    string `json:"sqmeterUrl"`
+	HTTPBind      string `json:"httpBind"`
+	HTTPPort      int    `json:"httpPort"`
+	DiscoveryPort int    `json:"discoveryPort"`
+	WideOpen      bool   `json:"wideOpen"`
+}
+
+type DiagnosticsPoller struct {
+	LastPollUTC    string  `json:"lastPollUtc"`
+	LastSuccessUTC string  `json:"lastSuccessUtc"`
+	LastError      *string `json:"lastError"`
+}
+
+type DiagnosticsSafety struct {
+	Connected      bool     `json:"connected"`
+	IsSafe         bool     `json:"isSafe"`
+	ManualOverride string   `json:"manualOverride"`
+	Reasons        []string `json:"reasons"`
+	Warnings       []string `json:"warnings"`
+}
+
+const diagTimeFmt = "2006-01-02 15:04:05 UTC"
+
+// Diagnostics handles GET /api/diagnostics.
+func (h *Handler) Diagnostics(w http.ResponseWriter, r *http.Request) {
+	s := h.holder.Get()
+	cfg := h.cfgHolder.Get()
+
+	var lastPoll, lastSuccess string
+	if !s.LastPollUTC.IsZero() {
+		lastPoll = s.LastPollUTC.UTC().Format(diagTimeFmt)
+	}
+	if !s.LastSuccessfulPollUTC.IsZero() {
+		lastSuccess = s.LastSuccessfulPollUTC.UTC().Format(diagTimeFmt)
+	}
+	var lastErr *string
+	if s.LastError != "" {
+		e := s.LastError
+		lastErr = &e
+	}
+
+	reasons := s.Reasons
+	if reasons == nil {
+		reasons = []string{}
+	}
+	warnings := s.Warnings
+	if warnings == nil {
+		warnings = []string{}
+	}
+
+	report := DiagnosticsReport{
+		Version:   h.version,
+		Timestamp: time.Now().UTC().Format(diagTimeFmt),
+		Uptime:    time.Since(h.startT).Round(time.Second).String(),
+		Config: DiagnosticsConfig{
+			Path:          h.cfgHolder.Path(),
+			SQMeterURL:    cfg.SQMeterBaseURL,
+			HTTPBind:      cfg.AlpacaHTTPBind,
+			HTTPPort:      cfg.AlpacaHTTPPort,
+			DiscoveryPort: cfg.AlpacaDiscoveryPort,
+			WideOpen:      config.IsWideOpen(cfg.AlpacaHTTPBind),
+		},
+		Poller: DiagnosticsPoller{
+			LastPollUTC:    lastPoll,
+			LastSuccessUTC: lastSuccess,
+			LastError:      lastErr,
+		},
+		Safety: DiagnosticsSafety{
+			Connected:      h.holder.IsConnected(),
+			IsSafe:         s.IsSafe,
+			ManualOverride: cfg.ManualOverride,
+			Reasons:        reasons,
+			Warnings:       warnings,
+		},
+	}
+	if h.discoveryStatus != nil {
+		ds := h.discoveryStatus()
+		report.Discovery = &ds
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(report)
 }
 
 // ---------- SQMeter connection test -----------------------------------------
