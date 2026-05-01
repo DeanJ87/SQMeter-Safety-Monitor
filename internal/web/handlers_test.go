@@ -762,13 +762,13 @@ func TestPostSetup_WithOptionalFloats(t *testing.T) {
 
 func TestPostSetup_InvalidOptionalFloat_Ignores(t *testing.T) {
 	h, cfgHolder, _ := newTestWebHandler(t, true, safeEv())
-	
+
 	// Set valid optional floats first
 	cfg := cfgHolder.Get()
 	sqmVal := 18.5
 	cfg.SQMMinSafe = &sqmVal
 	cfgHolder.Update(cfg)
-	
+
 	form := url.Values{}
 	form.Set("SQMETER_BASE_URL", "http://sqmeter.local")
 	form.Set("ALPACA_HTTP_BIND", "127.0.0.1")
@@ -798,7 +798,7 @@ func TestPostSetup_InvalidOptionalFloat_Ignores(t *testing.T) {
 
 func TestGetSetup_DisplaysOptionalFloats(t *testing.T) {
 	h, cfgHolder, _ := newTestWebHandler(t, true, safeEv())
-	
+
 	// Set optional float values
 	cfg := cfgHolder.Get()
 	sqmVal := 18.75
@@ -825,4 +825,3 @@ func TestGetSetup_DisplaysOptionalFloats(t *testing.T) {
 		t.Error("GET /setup: expected DEWPOINT_MARGIN_MIN_C value 2.3 in response")
 	}
 }
-

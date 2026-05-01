@@ -320,11 +320,11 @@ func waitForDiscoveryReplies(t *testing.T, addr string, errCh <-chan error, want
 				replies[port] = true
 			}
 		}
-		
+
 		if len(replies) >= want {
 			return replies
 		}
-		
+
 		// Brief pause between query attempts
 		time.Sleep(50 * time.Millisecond)
 	}
