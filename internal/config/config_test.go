@@ -135,3 +135,52 @@ func TestLoad_MissingURL(t *testing.T) {
 		t.Error("expected error for empty SQMETER_BASE_URL")
 	}
 }
+
+// TestLoad_OldConfigWithoutVersionStillLoads ensures pre-versioning config
+// files (no config_version field) are accepted and loaded as the current version.
+func TestLoad_OldConfigWithoutVersionStillLoads(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	// Simulate a config written before config_version was introduced.
+	old := `{"SQMETER_BASE_URL":"http://old.local","ALPACA_HTTP_PORT":11111}`
+	if err := os.WriteFile(path, []byte(old), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("old config should load without error: %v", err)
+	}
+	if cfg.SQMeterBaseURL != "http://old.local" {
+		t.Errorf("SQMeterBaseURL: want http://old.local, got %q", cfg.SQMeterBaseURL)
+	}
+	if cfg.ConfigVersion != config.CurrentConfigVersion {
+		t.Errorf("ConfigVersion: want %d (current), got %d", config.CurrentConfigVersion, cfg.ConfigVersion)
+	}
+}
+
+// TestDefaults_HasCurrentConfigVersion ensures freshly-written configs always
+// include the current schema version.
+func TestDefaults_HasCurrentConfigVersion(t *testing.T) {
+	cfg := config.Defaults()
+	if cfg.ConfigVersion != config.CurrentConfigVersion {
+		t.Errorf("Defaults() ConfigVersion: want %d, got %d", config.CurrentConfigVersion, cfg.ConfigVersion)
+	}
+}
+
+// TestLoad_ConfigVersionWrittenToNewFile verifies SaveDefault produces a file
+// that, when loaded, carries the current config version.
+func TestLoad_ConfigVersionWrittenToNewFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	if err := config.SaveDefault(path); err != nil {
+		t.Fatalf("SaveDefault: %v", err)
+	}
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.ConfigVersion != config.CurrentConfigVersion {
+		t.Errorf("config_version in saved file: want %d, got %d", config.CurrentConfigVersion, cfg.ConfigVersion)
+	}
+}

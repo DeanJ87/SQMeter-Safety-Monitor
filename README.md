@@ -36,6 +36,36 @@ It answers one question: **"Is it safe for the observatory to operate right now?
 
 ---
 
+## Upgrading
+
+The supported upgrade path is **install over the existing version** — you do not need to uninstall first.
+
+### Steps
+
+1. Download the new installer (`sqmeter-alpaca-safetymonitor-setup-vX.Y.Z.exe`) from [Releases](../../releases).
+2. Run the installer as Administrator.
+3. The installer automatically stops and unregisters the running service before replacing the binary, then re-registers and restarts it.
+4. Your `config.json` is never touched by the installer — settings are always preserved across upgrades.
+
+### What the installer does during an upgrade
+
+| Step | Details |
+|------|---------|
+| Stop service | The existing service is stopped and unregistered before the binary is replaced. |
+| Replace binary | The new `sqmeter-alpaca-safetymonitor.exe` is written to the install directory. |
+| Re-register service | The service is registered against the new binary and started. |
+| Config preserved | `config.json` and `device-uuid.txt` are not modified by the installer. |
+
+### Rollback
+
+To roll back to a previous version, run the older installer over the current installation using the same install-over-existing process. Your `config.json` is unaffected.
+
+### Automatic updates
+
+Automatic update checking is **not implemented**. New releases are announced on [GitHub Releases](../../releases). A future tray icon may offer a "check for updates" link to that page.
+
+---
+
 ## Configuration
 
 Configuration is managed through the web setup UI at `http://localhost:11111/setup`, which reads and writes `config.json` next to the executable.

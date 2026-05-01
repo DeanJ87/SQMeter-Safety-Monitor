@@ -11,6 +11,11 @@ import (
 // environment variable that influences runtime behaviour is LOG_LEVEL, which
 // is a process/logging concern and not a configuration file setting.
 type Config struct {
+	// ConfigVersion records which config schema version this file was written
+	// with. Absent in older files (loads as 0, treated as pre-versioning).
+	// The current version is 1. Future breaking schema changes will increment
+	// this and may apply migrations on load.
+	ConfigVersion        int      `json:"config_version,omitempty"`
 	SQMeterBaseURL       string   `json:"SQMETER_BASE_URL"`
 	AlpacaHTTPBind       string   `json:"ALPACA_HTTP_BIND"`
 	AlpacaHTTPPort       int      `json:"ALPACA_HTTP_PORT"`
@@ -31,9 +36,15 @@ type Config struct {
 	LogLevel             string   `json:"LOG_LEVEL"`
 }
 
+// CurrentConfigVersion is the schema version written to new and updated config files.
+// Older configs that predate this field load as version 0 in the raw JSON, but
+// Load stamps them with the current version before returning.
+const CurrentConfigVersion = 1
+
 // Defaults returns a Config populated with safe, conservative defaults.
 func Defaults() *Config {
 	return &Config{
+		ConfigVersion:        CurrentConfigVersion,
 		SQMeterBaseURL:       "http://sqmeter.local",
 		AlpacaHTTPBind:       "127.0.0.1",
 		AlpacaHTTPPort:       11111,
@@ -58,6 +69,11 @@ func Defaults() *Config {
 // Config loading order: defaults -> config file -> validation.
 // The only environment variable applied at runtime is LOG_LEVEL.
 // All other settings must be set in the config file.
+//
+// Configs written before config_version was introduced load as version 0.
+// They are valid and load without error; only the in-memory representation
+// is updated to CurrentConfigVersion. Future schema migrations, if any, will
+// key off the loaded version before stamping it.
 func Load(path string) (*Config, error) {
 	cfg := Defaults()
 
@@ -72,6 +88,10 @@ func Load(path string) (*Config, error) {
 			}
 		}
 	}
+
+	// Stamp the current version so callers always see a versioned config,
+	// even when loading a pre-versioning file (config_version absent → 0).
+	cfg.ConfigVersion = CurrentConfigVersion
 
 	// LOG_LEVEL is the only env var applied at runtime; it is a
 	// process/logging concern rather than an application setting.

@@ -1,5 +1,17 @@
 ; SQMeter Alpaca SafetyMonitor - Inno Setup installer script
 ; Build with: ISCC.exe /DAppVersion=1.2.3 setup.iss
+;
+; Upgrade behaviour (install over an existing version):
+;   1. BeforeInstall hook stops and uninstalls the running service.
+;   2. Installer replaces the binary.
+;   3. [Run] re-installs and restarts the service.
+;   4. config.json is NOT in [Files] and is never touched by the installer,
+;      so user configuration is always preserved across upgrades.
+;   5. device-uuid.txt is similarly left untouched.
+;
+; Automatic update checking is not implemented. Users upgrade by downloading
+; the new installer from GitHub Releases and running it over the existing
+; installation.
 
 #ifndef AppVersion
   #define AppVersion "dev"
@@ -36,16 +48,24 @@ MinVersion=10.0
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-; Main binary - placed in the install directory
-Source: "bin\{#ExeName}"; DestDir: "{app}"; Flags: ignoreversion
+; Main binary - placed in the install directory.
+; BeforeInstall stops and uninstalls any existing service so the binary is
+; not locked when the installer tries to replace it (Windows locks running
+; executables). On a fresh install the old binary does not exist and the
+; stop/uninstall calls fail silently, which is harmless.
+Source: "bin\{#ExeName}"; DestDir: "{app}"; Flags: ignoreversion; \
+  BeforeInstall: StopExistingService
 
 [Run]
-; Install the Windows service (registered against the installed exe path)
+; Re-install the Windows service against the new binary path.
+; On a fresh install this registers the service for the first time.
+; On an upgrade the old service was uninstalled by BeforeInstall, so this
+; is always a clean registration.
 Filename: "{app}\{#ExeName}"; Parameters: "--service install"; \
   Flags: runhidden waituntilterminated; \
   StatusMsg: "Installing service..."
 
-; Start the service so it is immediately available
+; Start the service so it is immediately available after install or upgrade.
 Filename: "{app}\{#ExeName}"; Parameters: "--service start"; \
   Flags: runhidden waituntilterminated; \
   StatusMsg: "Starting service..."
@@ -69,3 +89,17 @@ Name: "{group}\Configuration"; \
   Parameters: ""; \
   Comment: "Open SQMeter SafetyMonitor configuration (opens browser)"
 Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
+
+[Code]
+// StopExistingService is called by BeforeInstall on the main binary file entry.
+// It stops and uninstalls the running service so the installer can replace the
+// locked executable. Both calls are best-effort: a non-zero exit code (e.g.
+// service not found on a fresh install) is intentionally ignored.
+procedure StopExistingService;
+var ResultCode: Integer;
+begin
+  Exec(ExpandConstant('{app}\{#ExeName}'), '--service stop', '', SW_HIDE,
+       ewWaitUntilTerminated, ResultCode);
+  Exec(ExpandConstant('{app}\{#ExeName}'), '--service uninstall', '', SW_HIDE,
+       ewWaitUntilTerminated, ResultCode);
+end;
