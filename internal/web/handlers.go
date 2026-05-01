@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -339,10 +340,10 @@ func formOptFloat(r *http.Request, key string, dst **float64) {
 // ---------- SQMeter connection test -----------------------------------------
 
 // TestSQMeter handles POST /api/test-sqmeter.
-// It accepts {"url":"http://..."} and probes the given URL with a short
-// timeout, returning {"ok":true/false,"message":"..."}.
-// The URL must use http or https. A missing or empty url field falls back to
-// the currently configured SQMeterBaseURL.
+// It accepts {"url":"http://..."} and probes that host with a 2-second TCP
+// dial, returning {"ok":true/false,"message":"..."}. A missing or empty url
+// field falls back to the currently configured SQMeterBaseURL. The URL must
+// use http or https; host reachability is tested at the TCP layer only.
 func (h *Handler) TestSQMeter(w http.ResponseWriter, r *http.Request) {
 	type request struct {
 		URL string `json:"url"`
@@ -353,13 +354,12 @@ func (h *Handler) TestSQMeter(w http.ResponseWriter, r *http.Request) {
 	}
 	writeResult := func(ok bool, msg string) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		enc := json.NewEncoder(w)
-		_ = enc.Encode(response{OK: ok, Message: msg})
+		_ = json.NewEncoder(w).Encode(response{OK: ok, Message: msg})
 	}
 
 	body, err := io.ReadAll(io.LimitReader(r.Body, 4096))
 	if err != nil {
-		writeResult(false, "failed to read request body")
+		writeResult(false, "could not read request body")
 		return
 	}
 
@@ -376,23 +376,31 @@ func (h *Handler) TestSQMeter(w http.ResponseWriter, r *http.Request) {
 		target = h.cfgHolder.Get().SQMeterBaseURL
 	}
 	if target == "" {
-		writeResult(false, "no URL provided and no SQMeter URL is configured")
+		writeResult(false, "no SQMeter URL configured")
 		return
 	}
 
 	parsed, err := url.Parse(target)
 	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-		writeResult(false, "URL must use http or https")
+		writeResult(false, "URL must use http or https scheme")
 		return
 	}
 
-	client := &http.Client{Timeout: 2 * time.Second}
-	resp, err := client.Get(target)
+	port := parsed.Port()
+	if port == "" {
+		if parsed.Scheme == "https" {
+			port = "443"
+		} else {
+			port = "80"
+		}
+	}
+	addr := net.JoinHostPort(parsed.Hostname(), port)
+	conn, err := net.DialTimeout("tcp", addr, 2*time.Second)
 	if err != nil {
 		writeResult(false, "connection failed: "+err.Error())
 		return
 	}
-	resp.Body.Close()
+	conn.Close()
 
-	writeResult(true, fmt.Sprintf("connected (HTTP %d)", resp.StatusCode))
+	writeResult(true, "connected to "+addr)
 }

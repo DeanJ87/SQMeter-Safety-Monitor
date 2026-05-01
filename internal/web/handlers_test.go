@@ -476,8 +476,8 @@ func TestStatusJSON_NoDiscoveryField_WhenNotWired(t *testing.T) {
 
 // ---------- POST /api/test-sqmeter ------------------------------------------
 
-func TestTestSQMeter_ReachableURL(t *testing.T) {
-	// Spin up a small HTTP server to act as the SQMeter.
+func TestTestSQMeter_ReachableURLInBody(t *testing.T) {
+	// httptest.NewServer opens a real TCP listener, so a TCP-dial test succeeds.
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -502,9 +502,8 @@ func TestTestSQMeter_ReachableURL(t *testing.T) {
 	}
 }
 
-func TestTestSQMeter_UnreachableURL(t *testing.T) {
+func TestTestSQMeter_UnreachableURLInBody(t *testing.T) {
 	h, _, _ := newTestWebHandler(t, true, safeEv())
-	// Use an address that is not listening — connect should fail quickly.
 	body := `{"url":"http://127.0.0.1:19999"}`
 	w := serve(t, h, http.MethodPost, "/api/test-sqmeter", body)
 
@@ -535,14 +534,34 @@ func TestTestSQMeter_FallsBackToConfiguredURL(t *testing.T) {
 	cfg.SQMeterBaseURL = backend.URL
 	cfgHolder.Update(&cfg) //nolint:errcheck
 
-	// Send empty JSON body — handler should fall back to configured URL.
-	w := serve(t, h, http.MethodPost, "/api/test-sqmeter", `{}`)
+	// Empty body — handler uses configured URL.
+	w := serve(t, h, http.MethodPost, "/api/test-sqmeter", "")
 	var resp struct {
 		OK bool `json:"ok"`
 	}
 	json.NewDecoder(w.Body).Decode(&resp)
 	if !resp.OK {
 		t.Error("test-sqmeter: want ok=true when falling back to configured URL")
+	}
+}
+
+func TestTestSQMeter_NoURLAnywhere(t *testing.T) {
+	h, cfgHolder, _ := newTestWebHandler(t, true, safeEv())
+	cfg := *cfgHolder.Get()
+	cfg.SQMeterBaseURL = ""
+	cfgHolder.Update(&cfg) //nolint:errcheck
+
+	w := serve(t, h, http.MethodPost, "/api/test-sqmeter", "")
+	var resp struct {
+		OK      bool   `json:"ok"`
+		Message string `json:"message"`
+	}
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp.OK {
+		t.Error("test-sqmeter: want ok=false when no URL configured and none in body")
+	}
+	if resp.Message == "" {
+		t.Error("test-sqmeter: want non-empty message")
 	}
 }
 
@@ -557,5 +576,18 @@ func TestTestSQMeter_InvalidScheme(t *testing.T) {
 	json.NewDecoder(w.Body).Decode(&resp)
 	if resp.OK {
 		t.Error("test-sqmeter: want ok=false for non-http(s) scheme")
+	}
+}
+
+func TestTestSQMeter_InvalidJSON(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	w := serve(t, h, http.MethodPost, "/api/test-sqmeter", "{not valid")
+
+	var resp struct {
+		OK bool `json:"ok"`
+	}
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp.OK {
+		t.Error("test-sqmeter: want ok=false for malformed JSON body")
 	}
 }
