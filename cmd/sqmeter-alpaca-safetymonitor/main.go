@@ -89,6 +89,15 @@ func (p *program) run(ctx context.Context, interactive bool) {
 		"bind", cfg.AlpacaHTTPBind,
 	)
 
+	// If the on-disk config predates the current schema version, rewrite it
+	// with a timestamped backup. Best-effort: a failure here is logged but
+	// does not prevent startup (the migrated config is already in memory).
+	if backupPath, migErr := config.PersistMigrationIfNeeded(p.cfgPath, cfg); backupPath != "" {
+		logger.Info("config schema upgraded", "backup", backupPath)
+	} else if migErr != nil {
+		logger.Warn("could not persist migrated config", "error", migErr)
+	}
+
 	if config.IsWideOpen(cfg.AlpacaHTTPBind) {
 		logger.Warn("service is bound to a non-loopback address; reachable from the network",
 			"bind", cfg.AlpacaHTTPBind,
@@ -186,14 +195,15 @@ func (p *program) run(ctx context.Context, interactive bool) {
 // ---------- entry point ------------------------------------------------------
 
 func main() {
-	// Default config paths to the directory containing the executable so the
-	// service always finds its config regardless of working directory.
+	// Default config and data paths use the platform-appropriate location.
+	// On Windows this is %ProgramData%\SQMeter SafetyMonitor\; on other
+	// platforms the directory containing the executable is used.
 	exe, _ := os.Executable()
 	exeDir := filepath.Dir(exe)
 
 	var (
-		cfgPath            = flag.String("config", filepath.Join(exeDir, "config.json"), "path to JSON config file")
-		uuidPath           = flag.String("uuid-file", filepath.Join(exeDir, "device-uuid.txt"), "path to persist stable device UUID")
+		cfgPath            = flag.String("config", config.DefaultConfigPath(exeDir), "path to JSON config file")
+		uuidPath           = flag.String("uuid-file", config.DefaultUUIDPath(exeDir), "path to persist stable device UUID")
 		svcCmd             = flag.String("service", "", "manage the system service: install|uninstall|start|stop|status")
 		showVersion        = flag.Bool("version", false, "print version and exit")
 		writeDefaultConfig = flag.Bool("write-default-config", false, "write default config to --config path and exit")
@@ -204,6 +214,7 @@ func main() {
 
 	if *showVersion {
 		fmt.Printf("sqmeter-alpaca-safetymonitor %s (commit %s, built %s)\n", version, commit, date)
+		fmt.Printf("Latest releases: %s\n", config.ReleasesURL)
 		return
 	}
 

@@ -54,21 +54,53 @@ The supported upgrade path is **install over the existing version** — you do n
 | Stop service | The existing service is stopped and unregistered before the binary is replaced. |
 | Replace binary | The new `sqmeter-alpaca-safetymonitor.exe` is written to the install directory. |
 | Re-register service | The service is registered against the new binary and started. |
-| Config preserved | `config.json` and `device-uuid.txt` are not modified by the installer. |
+| Config preserved | `config.json` and `device-uuid.txt` in `%ProgramData%\SQMeter SafetyMonitor\` are not modified by the installer. |
 
 ### Rollback
 
 To roll back to a previous version, run the older installer over the current installation using the same install-over-existing process. Your `config.json` is unaffected.
 
+### Config schema migration
+
+When a new version introduces a config schema change, the binary migrates the in-memory config automatically on startup. If the on-disk file has an older `config_version`, the binary:
+
+1. Creates a timestamped backup (e.g. `config.20240115T120000Z.bak`) beside `config.json`.
+2. Rewrites `config.json` with the migrated settings.
+
+If the config file has a `config_version` newer than the binary supports, the service will not start — upgrade the binary to match.
+
 ### Automatic updates
 
-Automatic update checking is **not implemented**. New releases are announced on [GitHub Releases](../../releases). A future tray icon may offer a "check for updates" link to that page.
+Automatic update checking is **not implemented**. New releases are published on [GitHub Releases](../../releases). A future tray icon may offer a "check for updates" link to that page.
+
+Run `sqmeter-alpaca-safetymonitor.exe --version` to see the current version and the releases URL.
 
 ---
 
 ## Configuration
 
-Configuration is managed through the web setup UI at `http://localhost:11111/setup`, which reads and writes `config.json` next to the executable.
+Configuration is managed through the web setup UI at `http://localhost:11111/setup`.
+
+### Config file location
+
+| Platform | Default path |
+|----------|-------------|
+| Windows | `%ProgramData%\SQMeter SafetyMonitor\config.json` |
+| Linux / macOS | `<directory containing the executable>/config.json` |
+
+On Windows the config file lives in `%ProgramData%` (typically `C:\ProgramData\SQMeter SafetyMonitor\config.json`), not beside the `.exe`. This keeps the install directory under `Program Files` free of mutable user data.
+
+Override the path at any time with `--config <path>`.
+
+#### Migrating from an older installation
+
+Versions prior to this release stored `config.json` beside the executable in the install directory (e.g. `C:\Program Files\SQMeter Alpaca SafetyMonitor\config.json`). To migrate manually:
+
+1. Stop the service: `sqmeter-alpaca-safetymonitor.exe --service stop`
+2. Copy `config.json` from the install directory to `%ProgramData%\SQMeter SafetyMonitor\`.
+3. Start the service: `sqmeter-alpaca-safetymonitor.exe --service start`
+
+If no config exists in `%ProgramData%`, the service starts with built-in defaults and the setup page opens automatically.
 
 You can also edit `config.json` directly:
 
@@ -114,7 +146,7 @@ The only environment variable that influences runtime behaviour is `LOG_LEVEL` (
 
 | Flag | Description |
 |------|-------------|
-| `--config <path>` | Path to the JSON config file (default: `config.json` next to the exe) |
+| `--config <path>` | Path to the JSON config file (default: `%ProgramData%\SQMeter SafetyMonitor\config.json` on Windows, `<exedir>/config.json` on other platforms) |
 | `--write-default-config` | Write default settings to `--config` path and exit |
 | `--check-config` | Validate the config file and exit |
 
