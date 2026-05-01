@@ -78,7 +78,7 @@ func Load(path string) (*Config, error) {
 	cfg := Defaults()
 
 	if path != "" {
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) // #nosec G304 -- path comes from the --config CLI flag, which the operator controls
 		if err != nil && !os.IsNotExist(err) {
 			return nil, fmt.Errorf("reading config file %q: %w", path, err)
 		}

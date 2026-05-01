@@ -514,7 +514,7 @@ func (h *Handler) TestSQMeter(w http.ResponseWriter, r *http.Request) {
 		writeResult(false, "connection failed: "+err.Error())
 		return
 	}
-	conn.Close()
+	conn.Close() /* #nosec G104 -- TCP probe; connection immediately discarded; close error is irrelevant */ //nolint:errcheck
 
 	writeResult(true, "connected to "+addr)
 }

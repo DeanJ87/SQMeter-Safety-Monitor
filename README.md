@@ -197,6 +197,10 @@ If discovery does not work, manually add the device:
 - Device type: `SafetyMonitor`
 - Device number: `0`
 
+For a full explanation of how Alpaca discovery works, how to verify it manually,
+and how to troubleshoot conflicts with ASCOM Alpaca Simulators, see
+[docs/nina-alpaca-discovery.md](docs/nina-alpaca-discovery.md).
+
 ---
 
 ## Running as a Windows service
