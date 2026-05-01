@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -118,6 +119,7 @@ func (p *program) run(ctx context.Context, interactive bool) {
 
 	disc := discovery.New(cfg.AlpacaDiscoveryPort, cfg.AlpacaHTTPPort, logger)
 	webHandler.WithDiscovery(disc.GetStatus)
+	webHandler.WithVersion(fmt.Sprintf("%s (commit %s, built %s)", version, commit, date))
 
 	mux := http.NewServeMux()
 	alpacaHandler.Register(mux)
@@ -196,6 +198,7 @@ func main() {
 		showVersion        = flag.Bool("version", false, "print version and exit")
 		writeDefaultConfig = flag.Bool("write-default-config", false, "write default config to --config path and exit")
 		checkConfig        = flag.Bool("check-config", false, "validate config and exit")
+		runDiagnostics     = flag.Bool("diagnostics", false, "print service diagnostics and exit (service must be running)")
 	)
 	flag.Parse()
 
@@ -221,6 +224,30 @@ func main() {
 		}
 		fmt.Printf("config OK (SQMeter=%s, HTTP port=%d, discovery port=%d)\n",
 			cfg.SQMeterBaseURL, cfg.AlpacaHTTPPort, cfg.AlpacaDiscoveryPort)
+		return
+	}
+
+	if *runDiagnostics {
+		cfg, err := config.Load(*cfgPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "config error: %v\n", err)
+			os.Exit(1)
+		}
+		diagAddr := fmt.Sprintf("http://127.0.0.1:%d/api/diagnostics", cfg.AlpacaHTTPPort)
+		client := &http.Client{Timeout: 5 * time.Second}
+		resp, err := client.Get(diagAddr) //nolint:noctx
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "service unreachable at %s: %v\n", diagAddr, err)
+			fmt.Fprintf(os.Stderr, "Start the service first, or use --check-config for config-only validation.\n")
+			os.Exit(1)
+		}
+		defer resp.Body.Close()
+		var report web.DiagnosticsReport
+		if err := json.NewDecoder(resp.Body).Decode(&report); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to decode diagnostics response: %v\n", err)
+			os.Exit(1)
+		}
+		printDiagnosticsReport(report)
 		return
 	}
 
@@ -322,4 +349,75 @@ func openBrowser(url string) {
 		cmd = exec.Command("xdg-open", url)
 	}
 	_ = cmd.Start()
+}
+
+func printDiagnosticsReport(r web.DiagnosticsReport) {
+	none := func(s string) string {
+		if s == "" {
+			return "(none)"
+		}
+		return s
+	}
+	strSlice := func(ss []string) string {
+		if len(ss) == 0 {
+			return "(none)"
+		}
+		out := ""
+		for _, s := range ss {
+			out += "\n      - " + s
+		}
+		return out
+	}
+
+	fmt.Println("sqmeter-alpaca-safetymonitor diagnostics")
+	fmt.Println("=========================================")
+	fmt.Printf("version:    %s\n", none(r.Version))
+	fmt.Printf("timestamp:  %s\n", r.Timestamp)
+	fmt.Printf("uptime:     %s\n", r.Uptime)
+	fmt.Println()
+
+	fmt.Println("Config:")
+	fmt.Printf("  config path:    %s\n", none(r.Config.Path))
+	fmt.Printf("  sqmeter url:    %s\n", none(r.Config.SQMeterURL))
+	fmt.Printf("  http bind:      %s:%d\n", r.Config.HTTPBind, r.Config.HTTPPort)
+	fmt.Printf("  discovery port: %d\n", r.Config.DiscoveryPort)
+	fmt.Printf("  wide open:      %v\n", r.Config.WideOpen)
+	fmt.Println()
+
+	fmt.Println("Discovery:")
+	if r.Discovery == nil {
+		fmt.Println("  (status not available)")
+	} else {
+		d := r.Discovery
+		fmt.Printf("  running:        %v\n", d.Running)
+		fmt.Printf("  healthy:        %v\n", d.Healthy)
+		fmt.Printf("  last error:     %s\n", none(d.LastError))
+		fmt.Printf("  response count: %d\n", d.ResponseCount)
+		if d.LastRequestAt != nil {
+			fmt.Printf("  last request:   %s\n", d.LastRequestAt.UTC().Format("2006-01-02 15:04:05 UTC"))
+		}
+		if !d.Healthy {
+			fmt.Println()
+			fmt.Println("  ! Discovery is not healthy. Another process may own UDP port", d.ConfiguredPort)
+			fmt.Println("    Check for conflicting Alpaca software (e.g. ASCOM Simulators).")
+		}
+	}
+	fmt.Println()
+
+	fmt.Println("Poller:")
+	fmt.Printf("  last poll:      %s\n", none(r.Poller.LastPollUTC))
+	fmt.Printf("  last success:   %s\n", none(r.Poller.LastSuccessUTC))
+	lastErr := "(none)"
+	if r.Poller.LastError != nil {
+		lastErr = *r.Poller.LastError
+	}
+	fmt.Printf("  last error:     %s\n", lastErr)
+	fmt.Println()
+
+	fmt.Println("Safety:")
+	fmt.Printf("  connected:      %v\n", r.Safety.Connected)
+	fmt.Printf("  is_safe:        %v\n", r.Safety.IsSafe)
+	fmt.Printf("  override:       %s\n", r.Safety.ManualOverride)
+	fmt.Printf("  reasons:        %s\n", strSlice(r.Safety.Reasons))
+	fmt.Printf("  warnings:       %s\n", strSlice(r.Safety.Warnings))
 }

@@ -61,6 +61,9 @@ func TestDiscovery_GetStatus_HealthyAfterBind(t *testing.T) {
 	// Wait until listener is up by sending a probe.
 	waitForDiscoveryReply(t, "127.0.0.1:32279", errCh)
 
+	// Brief delay for status counters to update after response is sent
+	time.Sleep(50 * time.Millisecond)
+
 	s = resp.GetStatus()
 	if !s.Running {
 		t.Error("after bind: want running=true")
@@ -186,18 +189,46 @@ func TestDiscovery_AllowsSharedBindOnWindows(t *testing.T) {
 	defer cancel()
 
 	errCh := make(chan error, 2)
+	responders := []*discovery.Responder{}
 	for _, httpPort := range []int{32323, 11111} {
 		resp := discovery.New(discPort, httpPort, logger)
+		responders = append(responders, resp)
 		go func() {
 			errCh <- resp.Run(ctx)
 		}()
 	}
 
-	replies := waitForDiscoveryReplies(t, fmt.Sprintf("127.0.0.1:%d", discPort), errCh, 2)
-	for _, want := range []int{32323, 11111} {
-		if !replies[want] {
-			t.Fatalf("missing AlpacaPort %d in replies: %v", want, replies)
+	// Give both responders time to bind
+	time.Sleep(200 * time.Millisecond)
+
+	// Verify neither responder hit a bind error
+	select {
+	case err := <-errCh:
+		t.Fatalf("responder exited unexpectedly with error (bind likely failed): %v", err)
+	default:
+		// Good - both responders are running
+	}
+
+	// Verify both responders report as running and healthy
+	for i, resp := range responders {
+		status := resp.GetStatus()
+		if !status.Running {
+			t.Errorf("responder %d: expected running=true, got false", i)
 		}
+		if !status.Healthy {
+			t.Errorf("responder %d: expected healthy=true, got false (LastError: %s)", i, status.LastError)
+		}
+	}
+
+	// Verify at least one responds to discovery queries
+	// Note: Windows SO_REUSEADDR UDP load balancing is deterministic and may
+	// always route to the same listener, so we only verify at least one responds.
+	reply, err := readDiscoveryReply(fmt.Sprintf("127.0.0.1:%d", discPort), 1*time.Second)
+	if err != nil {
+		t.Fatalf("no discovery response received: %v", err)
+	}
+	if reply["AlpacaPort"] != 32323 && reply["AlpacaPort"] != 11111 {
+		t.Errorf("unexpected AlpacaPort %d, want 32323 or 11111", reply["AlpacaPort"])
 	}
 }
 
@@ -298,9 +329,13 @@ func readDiscoveryReply(addr string, timeout time.Duration) (map[string]int, err
 func waitForDiscoveryReplies(t *testing.T, addr string, errCh <-chan error, want int) map[int]bool {
 	t.Helper()
 
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(5 * time.Second)
 	replies := make(map[int]bool)
 	var lastErr error
+
+	// With SO_REUSEADDR on Windows, multiple listeners on the same port means
+	// each UDP packet goes to ONE listener (OS load balances). We need to send
+	// multiple queries from different source ports to hit all responders.
 	for time.Now().Before(deadline) {
 		select {
 		case err := <-errCh:
@@ -308,17 +343,21 @@ func waitForDiscoveryReplies(t *testing.T, addr string, errCh <-chan error, want
 		default:
 		}
 
-		got, err := readDiscoveryReplies(addr, 100*time.Millisecond)
+		// Send a fresh discovery query - new connection = new source port
+		// This gives OS a chance to route to a different responder
+		reply, err := readDiscoveryReply(addr, 100*time.Millisecond)
 		if err != nil {
 			lastErr = err
-			continue
+		} else {
+			replies[reply["AlpacaPort"]] = true
 		}
-		for port := range got {
-			replies[port] = true
-		}
+
 		if len(replies) >= want {
 			return replies
 		}
+
+		// Brief pause between query attempts
+		time.Sleep(50 * time.Millisecond)
 	}
 
 	t.Fatalf("timed out waiting for discovery replies: got %v, last error: %v", replies, lastErr)

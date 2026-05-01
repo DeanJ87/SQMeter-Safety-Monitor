@@ -591,3 +591,237 @@ func TestTestSQMeter_InvalidJSON(t *testing.T) {
 		t.Error("test-sqmeter: want ok=false for malformed JSON body")
 	}
 }
+
+// ---------- GET /api/diagnostics ---------------------------------------------
+
+func TestDiagnostics_BasicFields(t *testing.T) {
+	h, cfgHolder, _ := newTestWebHandler(t, true, safeEv())
+	h.WithVersion("test-version")
+	cfg := *cfgHolder.Get()
+	cfg.SQMeterBaseURL = "http://192.168.1.100"
+	cfg.AlpacaHTTPPort = 11111
+	cfg.AlpacaDiscoveryPort = 32227
+	cfgHolder.Update(&cfg) //nolint:errcheck
+
+	w := serve(t, h, http.MethodGet, "/api/diagnostics", "")
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("diagnostics: want 200, got %d", w.Code)
+	}
+
+	var report web.DiagnosticsReport
+	if err := json.NewDecoder(w.Body).Decode(&report); err != nil {
+		t.Fatalf("diagnostics: decode failed: %v", err)
+	}
+
+	if report.Version != "test-version" {
+		t.Errorf("diagnostics.version: want %q, got %q", "test-version", report.Version)
+	}
+	if report.Timestamp == "" {
+		t.Error("diagnostics.timestamp: want non-empty")
+	}
+	if report.Uptime == "" {
+		t.Error("diagnostics.uptime: want non-empty")
+	}
+	if report.Config.SQMeterURL != "http://192.168.1.100" {
+		t.Errorf("diagnostics.config.sqmeterUrl: want %q, got %q", "http://192.168.1.100", report.Config.SQMeterURL)
+	}
+	if report.Config.HTTPPort != 11111 {
+		t.Errorf("diagnostics.config.httpPort: want 11111, got %d", report.Config.HTTPPort)
+	}
+	if report.Config.DiscoveryPort != 32227 {
+		t.Errorf("diagnostics.config.discoveryPort: want 32227, got %d", report.Config.DiscoveryPort)
+	}
+	if !report.Safety.Connected {
+		t.Error("diagnostics.safety.connected: want true")
+	}
+	if !report.Safety.IsSafe {
+		t.Error("diagnostics.safety.isSafe: want true")
+	}
+	if report.Safety.Reasons == nil {
+		t.Error("diagnostics.safety.reasons: want non-nil slice")
+	}
+}
+
+func TestDiagnostics_UnsafeState(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, unsafeEv())
+
+	w := serve(t, h, http.MethodGet, "/api/diagnostics", "")
+
+	var report web.DiagnosticsReport
+	json.NewDecoder(w.Body).Decode(&report) //nolint:errcheck
+
+	if report.Safety.IsSafe {
+		t.Error("diagnostics.safety.isSafe: want false for unsafe state")
+	}
+	if len(report.Safety.Reasons) == 0 {
+		t.Error("diagnostics.safety.reasons: want at least one reason for unsafe state")
+	}
+}
+
+func TestDiagnostics_WithDiscovery(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	ds := discovery.Status{
+		ConfiguredPort: 32227,
+		Running:        true,
+		Healthy:        true,
+		ResponseCount:  3,
+	}
+	h.WithDiscovery(func() discovery.Status { return ds })
+
+	w := serve(t, h, http.MethodGet, "/api/diagnostics", "")
+
+	var report web.DiagnosticsReport
+	json.NewDecoder(w.Body).Decode(&report) //nolint:errcheck
+
+	if report.Discovery == nil {
+		t.Fatal("diagnostics.discovery: want non-nil when getter is wired")
+	}
+	if !report.Discovery.Running {
+		t.Error("diagnostics.discovery.running: want true")
+	}
+	if !report.Discovery.Healthy {
+		t.Error("diagnostics.discovery.healthy: want true")
+	}
+	if report.Discovery.ResponseCount != 3 {
+		t.Errorf("diagnostics.discovery.responseCount: want 3, got %d", report.Discovery.ResponseCount)
+	}
+}
+
+func TestDiagnostics_WithoutDiscovery(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	// no WithDiscovery call
+
+	w := serve(t, h, http.MethodGet, "/api/diagnostics", "")
+
+	var report web.DiagnosticsReport
+	json.NewDecoder(w.Body).Decode(&report) //nolint:errcheck
+
+	if report.Discovery != nil {
+		t.Error("diagnostics.discovery: want nil when no getter is wired")
+	}
+}
+
+func TestDiagnostics_PollerTimestamps(t *testing.T) {
+	ev := safeEv()
+	ev.LastError = "timeout connecting to device"
+	h, _, _ := newTestWebHandler(t, true, ev)
+
+	w := serve(t, h, http.MethodGet, "/api/diagnostics", "")
+
+	var report web.DiagnosticsReport
+	json.NewDecoder(w.Body).Decode(&report) //nolint:errcheck
+
+	if report.Poller.LastPollUTC == "" {
+		t.Error("diagnostics.poller.lastPollUtc: want non-empty")
+	}
+	if report.Poller.LastError == nil {
+		t.Error("diagnostics.poller.lastError: want non-nil when state has error")
+	} else if *report.Poller.LastError != "timeout connecting to device" {
+		t.Errorf("diagnostics.poller.lastError: want %q, got %q", "timeout connecting to device", *report.Poller.LastError)
+	}
+}
+
+// ---------- optional float fields coverage ----------------------------------
+
+func TestPostSetup_WithOptionalFloats(t *testing.T) {
+	h, cfgHolder, _ := newTestWebHandler(t, true, safeEv())
+	form := url.Values{}
+	form.Set("SQMETER_BASE_URL", "http://sqmeter.local")
+	form.Set("ALPACA_HTTP_BIND", "127.0.0.1")
+	form.Set("ALPACA_HTTP_PORT", "11111")
+	form.Set("ALPACA_DISCOVERY_PORT", "32227")
+	form.Set("POLL_INTERVAL_SECONDS", "5")
+	form.Set("STALE_AFTER_SECONDS", "30")
+	form.Set("FAIL_CLOSED", "true")
+	form.Set("CONNECTED_ON_STARTUP", "true")
+	form.Set("CLOUD_COVER_UNSAFE_PERCENT", "80")
+	form.Set("CLOUD_COVER_CAUTION_PERCENT", "50")
+	form.Set("MANUAL_OVERRIDE", "auto")
+	form.Set("LOG_LEVEL", "info")
+	form.Set("SQM_MIN_SAFE", "18.5")
+	form.Set("HUMIDITY_MAX_SAFE", "85.0")
+	form.Set("DEWPOINT_MARGIN_MIN_C", "2.0")
+
+	w := serve(t, h, http.MethodPost, "/setup", form.Encode())
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("POST /setup: want 303, got %d", w.Code)
+	}
+
+	cfg := cfgHolder.Get()
+	if cfg.SQMMinSafe == nil || *cfg.SQMMinSafe != 18.5 {
+		t.Errorf("SQMMinSafe: want 18.5, got %v", cfg.SQMMinSafe)
+	}
+	if cfg.HumidityMaxSafe == nil || *cfg.HumidityMaxSafe != 85.0 {
+		t.Errorf("HumidityMaxSafe: want 85.0, got %v", cfg.HumidityMaxSafe)
+	}
+	if cfg.DewpointMarginMinC == nil || *cfg.DewpointMarginMinC != 2.0 {
+		t.Errorf("DewpointMarginMinC: want 2.0, got %v", cfg.DewpointMarginMinC)
+	}
+}
+
+func TestPostSetup_InvalidOptionalFloat_Ignores(t *testing.T) {
+	h, cfgHolder, _ := newTestWebHandler(t, true, safeEv())
+
+	// Set valid optional floats first
+	cfg := cfgHolder.Get()
+	sqmVal := 18.5
+	cfg.SQMMinSafe = &sqmVal
+	cfgHolder.Update(cfg)
+
+	form := url.Values{}
+	form.Set("SQMETER_BASE_URL", "http://sqmeter.local")
+	form.Set("ALPACA_HTTP_BIND", "127.0.0.1")
+	form.Set("ALPACA_HTTP_PORT", "11111")
+	form.Set("ALPACA_DISCOVERY_PORT", "32227")
+	form.Set("POLL_INTERVAL_SECONDS", "5")
+	form.Set("STALE_AFTER_SECONDS", "30")
+	form.Set("FAIL_CLOSED", "true")
+	form.Set("CONNECTED_ON_STARTUP", "true")
+	form.Set("CLOUD_COVER_UNSAFE_PERCENT", "80")
+	form.Set("CLOUD_COVER_CAUTION_PERCENT", "50")
+	form.Set("MANUAL_OVERRIDE", "auto")
+	form.Set("LOG_LEVEL", "info")
+	form.Set("SQM_MIN_SAFE", "not-a-number")
+
+	w := serve(t, h, http.MethodPost, "/setup", form.Encode())
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("POST /setup: want 303, got %d", w.Code)
+	}
+
+	// Invalid value should be ignored, original value retained
+	cfg = cfgHolder.Get()
+	if cfg.SQMMinSafe == nil || *cfg.SQMMinSafe != 18.5 {
+		t.Errorf("SQMMinSafe should remain 18.5 after invalid input, got %v", cfg.SQMMinSafe)
+	}
+}
+
+func TestGetSetup_DisplaysOptionalFloats(t *testing.T) {
+	h, cfgHolder, _ := newTestWebHandler(t, true, safeEv())
+
+	// Set optional float values
+	cfg := cfgHolder.Get()
+	sqmVal := 18.75
+	humidVal := 85.5
+	dewVal := 2.3
+	cfg.SQMMinSafe = &sqmVal
+	cfg.HumidityMaxSafe = &humidVal
+	cfg.DewpointMarginMinC = &dewVal
+	cfgHolder.Update(cfg)
+
+	w := serve(t, h, http.MethodGet, "/setup", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /setup: want 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "18.75") {
+		t.Error("GET /setup: expected SQM_MIN_SAFE value 18.75 in response")
+	}
+	if !strings.Contains(body, "85.5") {
+		t.Error("GET /setup: expected HUMIDITY_MAX_SAFE value 85.5 in response")
+	}
+	if !strings.Contains(body, "2.3") {
+		t.Error("GET /setup: expected DEWPOINT_MARGIN_MIN_C value 2.3 in response")
+	}
+}
