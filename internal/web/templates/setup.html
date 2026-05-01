@@ -140,6 +140,25 @@
   }
   button[type=submit]:hover { background: #2060b0; }
   .config-path { font-size: 0.72rem; color: var(--muted); font-family: 'Courier New', monospace; }
+  .btn-test {
+    background: transparent;
+    border: 1px solid #5b9bd5;
+    color: #5b9bd5;
+    border-radius: 4px;
+    padding: 5px 14px;
+    font-size: 0.82rem;
+    cursor: pointer;
+    margin-top: 6px;
+  }
+  .btn-test:hover { background: #1a2a40; }
+  .test-result {
+    font-size: 0.78rem;
+    margin-top: 5px;
+    font-family: 'Courier New', monospace;
+    min-height: 1.4em;
+  }
+  .test-result.ok  { color: var(--safe-fg); }
+  .test-result.err { color: var(--unsafe-fg); }
 </style>
 </head>
 <body>
@@ -181,10 +200,35 @@
   <h2>SQMeter Connection</h2>
   <div class="field">
     <label>SQMETER_BASE_URL</label>
-    <input type="text" name="SQMETER_BASE_URL" value="{{.Config.SQMeterBaseURL}}" placeholder="http://192.168.1.100">
+    <input type="text" id="sqmeter-url" name="SQMETER_BASE_URL" value="{{.Config.SQMeterBaseURL}}" placeholder="http://192.168.1.100">
     <div class="hint">Base URL of your SQMeter device. Applied immediately.</div>
+    <button type="button" class="btn-test" onclick="testSQMeter()">Test connection</button>
+    <div id="test-result" class="test-result"></div>
   </div>
 </section>
+
+<script>
+function testSQMeter() {
+  var url = document.getElementById('sqmeter-url').value.trim();
+  var el = document.getElementById('test-result');
+  el.className = 'test-result';
+  el.textContent = 'Testing…';
+  fetch('/api/test-sqmeter', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({url: url})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    el.className = 'test-result ' + (d.ok ? 'ok' : 'err');
+    el.textContent = (d.ok ? '✓ ' : '✗ ') + d.message;
+  })
+  .catch(function(e) {
+    el.className = 'test-result err';
+    el.textContent = '✗ ' + e;
+  });
+}
+</script>
 
 <section>
   <h2>Polling</h2>

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -61,6 +62,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /setup", h.PostSetup)
 	mux.HandleFunc("GET /config.json", h.GetConfigJSON)
 	mux.HandleFunc("PUT /config.json", h.PutConfigJSON)
+	mux.HandleFunc("POST /api/test-sqmeter", h.TestSQMeter)
 }
 
 // ---------- dashboard --------------------------------------------------------
@@ -333,4 +335,72 @@ func formOptFloat(r *http.Request, key string, dst **float64) {
 	if f, err := strconv.ParseFloat(v, 64); err == nil {
 		*dst = &f
 	}
+}
+
+// ---------- SQMeter connection test -----------------------------------------
+
+// TestSQMeter handles POST /api/test-sqmeter.
+// It accepts {"url":"http://..."} and probes that host with a 2-second TCP
+// dial, returning {"ok":true/false,"message":"..."}. A missing or empty url
+// field falls back to the currently configured SQMeterBaseURL. The URL must
+// use http or https; host reachability is tested at the TCP layer only.
+func (h *Handler) TestSQMeter(w http.ResponseWriter, r *http.Request) {
+	type request struct {
+		URL string `json:"url"`
+	}
+	type response struct {
+		OK      bool   `json:"ok"`
+		Message string `json:"message"`
+	}
+	writeResult := func(ok bool, msg string) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_ = json.NewEncoder(w).Encode(response{OK: ok, Message: msg})
+	}
+
+	body, err := io.ReadAll(io.LimitReader(r.Body, 4096))
+	if err != nil {
+		writeResult(false, "could not read request body")
+		return
+	}
+
+	var req request
+	if len(body) > 0 {
+		if err := json.Unmarshal(body, &req); err != nil {
+			writeResult(false, "invalid JSON: "+err.Error())
+			return
+		}
+	}
+
+	target := req.URL
+	if target == "" {
+		target = h.cfgHolder.Get().SQMeterBaseURL
+	}
+	if target == "" {
+		writeResult(false, "no SQMeter URL configured")
+		return
+	}
+
+	parsed, err := url.Parse(target)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		writeResult(false, "URL must use http or https scheme")
+		return
+	}
+
+	port := parsed.Port()
+	if port == "" {
+		if parsed.Scheme == "https" {
+			port = "443"
+		} else {
+			port = "80"
+		}
+	}
+	addr := net.JoinHostPort(parsed.Hostname(), port)
+	conn, err := net.DialTimeout("tcp", addr, 2*time.Second)
+	if err != nil {
+		writeResult(false, "connection failed: "+err.Error())
+		return
+	}
+	conn.Close()
+
+	writeResult(true, "connected to "+addr)
 }
