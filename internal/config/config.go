@@ -66,16 +66,18 @@ func Defaults() *Config {
 // Load reads config from path (may be empty) and applies LOG_LEVEL from the
 // environment if set. Returns an error if the file exists but is invalid.
 //
-// Config loading order: defaults -> config file -> validation.
+// Config loading order: defaults -> config file -> migration -> validation.
 // The only environment variable applied at runtime is LOG_LEVEL.
 // All other settings must be set in the config file.
 //
-// Configs written before config_version was introduced load as version 0.
-// They are valid and load without error; only the in-memory representation
-// is updated to CurrentConfigVersion. Future schema migrations, if any, will
-// key off the loaded version before stamping it.
+// Configs written before config_version was introduced load as version 0 and
+// are migrated to CurrentConfigVersion in memory. If the on-disk version is
+// newer than CurrentConfigVersion, Load returns an error. To persist the
+// migrated config back to disk (with a backup), call PersistMigrationIfNeeded
+// after a successful Load.
 func Load(path string) (*Config, error) {
 	cfg := Defaults()
+	loadedVersion := 0 // 0 = pre-versioning file or no file
 
 	if path != "" {
 		data, err := os.ReadFile(path) // #nosec G304 -- path comes from the --config CLI flag, which the operator controls
@@ -86,11 +88,15 @@ func Load(path string) (*Config, error) {
 			if err := json.Unmarshal(data, cfg); err != nil {
 				return nil, fmt.Errorf("parsing config file %q: %w", path, err)
 			}
+			loadedVersion = cfg.ConfigVersion
 		}
 	}
 
-	// Stamp the current version so callers always see a versioned config,
-	// even when loading a pre-versioning file (config_version absent → 0).
+	if err := migrateConfig(cfg, loadedVersion); err != nil {
+		return nil, err
+	}
+
+	// Stamp the current version so callers always see a versioned config.
 	cfg.ConfigVersion = CurrentConfigVersion
 
 	// LOG_LEVEL is the only env var applied at runtime; it is a
