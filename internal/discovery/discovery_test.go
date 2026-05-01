@@ -61,6 +61,9 @@ func TestDiscovery_GetStatus_HealthyAfterBind(t *testing.T) {
 	// Wait until listener is up by sending a probe.
 	waitForDiscoveryReply(t, "127.0.0.1:32279", errCh)
 
+	// Brief delay for status counters to update after response is sent
+	time.Sleep(50 * time.Millisecond)
+
 	s = resp.GetStatus()
 	if !s.Running {
 		t.Error("after bind: want running=true")
