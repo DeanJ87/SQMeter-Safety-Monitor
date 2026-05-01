@@ -74,7 +74,7 @@ func (r *Responder) Run(ctx context.Context) error {
 
 	go func() {
 		<-ctx.Done()
-		conn.Close()
+		conn.Close() /* #nosec G104 -- closing UDP socket on shutdown; error cannot be meaningfully handled here */ //nolint:errcheck
 	}()
 
 	reply, _ := json.Marshal(map[string]int{"AlpacaPort": r.httpPort})

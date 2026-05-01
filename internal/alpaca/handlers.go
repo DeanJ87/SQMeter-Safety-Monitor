@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -67,6 +68,10 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/v1/safetymonitor/0/commandblind", h.PutCommandNotImpl)
 	mux.HandleFunc("PUT /api/v1/safetymonitor/0/commandbool", h.PutCommandNotImpl)
 	mux.HandleFunc("PUT /api/v1/safetymonitor/0/commandstring", h.PutCommandNotImpl)
+
+	// Catch-all for any unrecognised /api/ path. This prevents the dashboard
+	// handler from returning HTML for malformed or unsupported Alpaca URLs.
+	mux.HandleFunc("/api/", h.APINotFound)
 }
 
 // ---------- helpers ----------------------------------------------------------
@@ -80,12 +85,37 @@ func writeJSON(w http.ResponseWriter, v any) {
 	}
 }
 
+// queryGetCI returns the first value for key from query params using a
+// case-insensitive key match, allowing ConformU to send e.g.
+// "clienttransactionid" or "CLIENTTRANSACTIONID" and still be parsed.
+func queryGetCI(q map[string][]string, key string) string {
+	keyLower := strings.ToLower(key)
+	for k, vals := range q {
+		if strings.ToLower(k) == keyLower && len(vals) > 0 {
+			return vals[0]
+		}
+	}
+	return ""
+}
+
+// formGetCI returns the first value for key from a parsed form using a
+// case-insensitive key match.
+func formGetCI(r *http.Request, key string) string {
+	keyLower := strings.ToLower(key)
+	for k, vals := range r.Form {
+		if strings.ToLower(k) == keyLower && len(vals) > 0 {
+			return vals[0]
+		}
+	}
+	return ""
+}
+
 func parseGetParams(r *http.Request) (clientID, clientTxID uint32) {
 	q := r.URL.Query()
-	if v, err := strconv.ParseUint(q.Get("ClientID"), 10, 32); err == nil {
+	if v, err := strconv.ParseUint(queryGetCI(q, "ClientID"), 10, 32); err == nil {
 		clientID = uint32(v)
 	}
-	if v, err := strconv.ParseUint(q.Get("ClientTransactionID"), 10, 32); err == nil {
+	if v, err := strconv.ParseUint(queryGetCI(q, "ClientTransactionID"), 10, 32); err == nil {
 		clientTxID = uint32(v)
 	}
 	return
@@ -93,13 +123,26 @@ func parseGetParams(r *http.Request) (clientID, clientTxID uint32) {
 
 func parsePutParams(r *http.Request) (clientID, clientTxID uint32) {
 	_ = r.ParseForm()
-	if v, err := strconv.ParseUint(r.FormValue("ClientID"), 10, 32); err == nil {
+	if v, err := strconv.ParseUint(formGetCI(r, "ClientID"), 10, 32); err == nil {
 		clientID = uint32(v)
 	}
-	if v, err := strconv.ParseUint(r.FormValue("ClientTransactionID"), 10, 32); err == nil {
+	if v, err := strconv.ParseUint(formGetCI(r, "ClientTransactionID"), 10, 32); err == nil {
 		clientTxID = uint32(v)
 	}
 	return
+}
+
+// APINotFound handles any /api/ path that did not match a registered Alpaca
+// route. It returns a 404 Alpaca-style JSON error so that ConformU bad-path
+// tests do not receive an HTML dashboard response.
+func (h *Handler) APINotFound(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusNotFound)
+	resp := VoidResponse{
+		ErrorNumber:  ErrUnspecified,
+		ErrorMessage: "not found: " + r.URL.Path,
+	}
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 func okResp[T any](clientTxID, serverTxID uint32, value T) Response[T] {
