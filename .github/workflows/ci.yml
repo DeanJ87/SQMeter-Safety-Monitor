@@ -40,6 +40,11 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      - name: Security scan (gosec)
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          ~/go/bin/gosec ./...
+
       - name: Test (race detector)
         run: go test ./... -race -count=1
 

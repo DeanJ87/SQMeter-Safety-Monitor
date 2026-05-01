@@ -285,7 +285,7 @@ func main() {
 		go func() {
 			sig := <-sigCh
 			fmt.Fprintf(os.Stderr, "\nreceived %s, stopping...\n", sig)
-			s.Stop() //nolint:errcheck
+			s.Stop() /* #nosec G104 -- shutdown call; error cannot be acted on during signal handling */ //nolint:errcheck
 		}()
 	}
 
@@ -298,7 +298,7 @@ func main() {
 // ---------- helpers ----------------------------------------------------------
 
 func loadOrCreateUUID(path string) (string, error) {
-	if data, err := os.ReadFile(path); err == nil {
+	if data, err := os.ReadFile(path); err == nil { // #nosec G304 -- path comes from the --config CLI flag, which the operator controls
 		u := strings.TrimSpace(string(data))
 		if len(u) == 36 {
 			return u, nil
@@ -342,11 +342,11 @@ func openBrowser(url string) {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url) // #nosec G204 -- executable is hardcoded; url is the configured listen address, not user input
 	case "darwin":
-		cmd = exec.Command("open", url)
+		cmd = exec.Command("open", url) // #nosec G204 -- executable is hardcoded; url is the configured listen address, not user input
 	default:
-		cmd = exec.Command("xdg-open", url)
+		cmd = exec.Command("xdg-open", url) // #nosec G204 -- executable is hardcoded; url is the configured listen address, not user input
 	}
 	_ = cmd.Start()
 }
