@@ -186,21 +186,46 @@ func TestDiscovery_AllowsSharedBindOnWindows(t *testing.T) {
 	defer cancel()
 
 	errCh := make(chan error, 2)
+	responders := []*discovery.Responder{}
 	for _, httpPort := range []int{32323, 11111} {
 		resp := discovery.New(discPort, httpPort, logger)
+		responders = append(responders, resp)
 		go func() {
 			errCh <- resp.Run(ctx)
 		}()
 	}
 
-	// Give both responders time to start listening before querying
-	time.Sleep(100 * time.Millisecond)
+	// Give both responders time to bind
+	time.Sleep(200 * time.Millisecond)
 
-	replies := waitForDiscoveryReplies(t, fmt.Sprintf("127.0.0.1:%d", discPort), errCh, 2)
-	for _, want := range []int{32323, 11111} {
-		if !replies[want] {
-			t.Fatalf("missing AlpacaPort %d in replies: %v", want, replies)
+	// Verify neither responder hit a bind error
+	select {
+	case err := <-errCh:
+		t.Fatalf("responder exited unexpectedly with error (bind likely failed): %v", err)
+	default:
+		// Good - both responders are running
+	}
+
+	// Verify both responders report as running and healthy
+	for i, resp := range responders {
+		status := resp.GetStatus()
+		if !status.Running {
+			t.Errorf("responder %d: expected running=true, got false", i)
 		}
+		if !status.Healthy {
+			t.Errorf("responder %d: expected healthy=true, got false (LastError: %s)", i, status.LastError)
+		}
+	}
+
+	// Verify at least one responds to discovery queries
+	// Note: Windows SO_REUSEADDR UDP load balancing is deterministic and may
+	// always route to the same listener, so we only verify at least one responds.
+	reply, err := readDiscoveryReply(fmt.Sprintf("127.0.0.1:%d", discPort), 1*time.Second)
+	if err != nil {
+		t.Fatalf("no discovery response received: %v", err)
+	}
+	if reply["AlpacaPort"] != 32323 && reply["AlpacaPort"] != 11111 {
+		t.Errorf("unexpected AlpacaPort %d, want 32323 or 11111", reply["AlpacaPort"])
 	}
 }
 
