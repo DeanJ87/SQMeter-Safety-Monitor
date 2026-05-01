@@ -40,7 +40,7 @@ func BackupConfigFile(path string) (string, error) {
 	ext := filepath.Ext(path)
 	base := strings.TrimSuffix(path, ext)
 	backupPath := fmt.Sprintf("%s.%s.bak", base, ts)
-	if err := os.WriteFile(backupPath, data, 0600); err != nil {
+	if err := os.WriteFile(backupPath, data, 0600); err != nil { // #nosec G703 -- backupPath is derived from operator-controlled --config path
 		return "", fmt.Errorf("writing config backup %q: %w", backupPath, err)
 	}
 	return backupPath, nil
