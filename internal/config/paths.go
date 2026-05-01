@@ -1,0 +1,44 @@
+package config
+
+import (
+	"os"
+	"path/filepath"
+	"runtime"
+)
+
+const (
+	// AppDataDirName is the subdirectory name used under %ProgramData% on Windows.
+	AppDataDirName = "SQMeter SafetyMonitor"
+
+	// ReleasesURL is the canonical URL for checking the latest release.
+	ReleasesURL = "https://github.com/DeanJ87/SQMeter-Safety-Monitor/releases"
+)
+
+// DefaultConfigPath returns the platform-appropriate default path for config.json.
+//
+// On Windows:  %ProgramData%\SQMeter SafetyMonitor\config.json
+// Other:       <exeDir>/config.json  (preserves prior behaviour)
+//
+// The --config CLI flag always overrides this value.
+func DefaultConfigPath(exeDir string) string {
+	if runtime.GOOS == "windows" {
+		if pd := os.Getenv("ProgramData"); pd != "" {
+			return filepath.Join(pd, AppDataDirName, "config.json")
+		}
+		// ProgramData is always set on modern Windows; fall back to exe dir.
+	}
+	return filepath.Join(exeDir, "config.json")
+}
+
+// DefaultUUIDPath returns the platform-appropriate default path for device-uuid.txt.
+//
+// On Windows:  %ProgramData%\SQMeter SafetyMonitor\device-uuid.txt
+// Other:       <exeDir>/device-uuid.txt
+func DefaultUUIDPath(exeDir string) string {
+	if runtime.GOOS == "windows" {
+		if pd := os.Getenv("ProgramData"); pd != "" {
+			return filepath.Join(pd, AppDataDirName, "device-uuid.txt")
+		}
+	}
+	return filepath.Join(exeDir, "device-uuid.txt")
+}

@@ -11,6 +11,11 @@ import (
 // environment variable that influences runtime behaviour is LOG_LEVEL, which
 // is a process/logging concern and not a configuration file setting.
 type Config struct {
+	// ConfigVersion records which config schema version this file was written
+	// with. Absent in older files (loads as 0, treated as pre-versioning).
+	// The current version is 1. Future breaking schema changes will increment
+	// this and may apply migrations on load.
+	ConfigVersion        int      `json:"config_version,omitempty"`
 	SQMeterBaseURL       string   `json:"SQMETER_BASE_URL"`
 	AlpacaHTTPBind       string   `json:"ALPACA_HTTP_BIND"`
 	AlpacaHTTPPort       int      `json:"ALPACA_HTTP_PORT"`
@@ -31,9 +36,15 @@ type Config struct {
 	LogLevel             string   `json:"LOG_LEVEL"`
 }
 
+// CurrentConfigVersion is the schema version written to new and updated config files.
+// Older configs that predate this field load as version 0 in the raw JSON, but
+// Load stamps them with the current version before returning.
+const CurrentConfigVersion = 1
+
 // Defaults returns a Config populated with safe, conservative defaults.
 func Defaults() *Config {
 	return &Config{
+		ConfigVersion:        CurrentConfigVersion,
 		SQMeterBaseURL:       "http://sqmeter.local",
 		AlpacaHTTPBind:       "127.0.0.1",
 		AlpacaHTTPPort:       11111,
@@ -55,11 +66,18 @@ func Defaults() *Config {
 // Load reads config from path (may be empty) and applies LOG_LEVEL from the
 // environment if set. Returns an error if the file exists but is invalid.
 //
-// Config loading order: defaults -> config file -> validation.
+// Config loading order: defaults -> config file -> migration -> validation.
 // The only environment variable applied at runtime is LOG_LEVEL.
 // All other settings must be set in the config file.
+//
+// Configs written before config_version was introduced load as version 0 and
+// are migrated to CurrentConfigVersion in memory. If the on-disk version is
+// newer than CurrentConfigVersion, Load returns an error. To persist the
+// migrated config back to disk (with a backup), call PersistMigrationIfNeeded
+// after a successful Load.
 func Load(path string) (*Config, error) {
 	cfg := Defaults()
+	loadedVersion := 0 // 0 = pre-versioning file or no file
 
 	if path != "" {
 		data, err := os.ReadFile(path) // #nosec G304 -- path comes from the --config CLI flag, which the operator controls
@@ -70,8 +88,16 @@ func Load(path string) (*Config, error) {
 			if err := json.Unmarshal(data, cfg); err != nil {
 				return nil, fmt.Errorf("parsing config file %q: %w", path, err)
 			}
+			loadedVersion = cfg.ConfigVersion
 		}
 	}
+
+	if err := migrateConfig(cfg, loadedVersion); err != nil {
+		return nil, err
+	}
+
+	// Stamp the current version so callers always see a versioned config.
+	cfg.ConfigVersion = CurrentConfigVersion
 
 	// LOG_LEVEL is the only env var applied at runtime; it is a
 	// process/logging concern rather than an application setting.

@@ -138,7 +138,7 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $true
           $exe = ".\dist\sqmeter-alpaca-safetymonitor-windows-amd64.exe"
 
-          $versionOutput = & $exe --version
+          $versionOutput = (& $exe --version) -join "`n"
           $versionOutput
           if ($versionOutput -notmatch "ci") {
             throw "version output did not include the CI version"

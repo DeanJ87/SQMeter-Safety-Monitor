@@ -2,7 +2,9 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 )
 
@@ -28,13 +30,16 @@ func (h *Holder) Get() *Config {
 	return h.cfg
 }
 
-// Update validates newCfg, persists it (if a path is set), then atomically
-// replaces the current config.
+// Update validates newCfg, ensures the config directory exists, persists the
+// config (if a path is set), then atomically replaces the current config.
 func (h *Holder) Update(newCfg *Config) error {
 	if err := validate(newCfg); err != nil {
 		return err
 	}
 	if h.path != "" {
+		if err := os.MkdirAll(filepath.Dir(h.path), 0700); err != nil {
+			return fmt.Errorf("creating config directory: %w", err)
+		}
 		if err := saveToFile(newCfg, h.path); err != nil {
 			return err
 		}
@@ -48,8 +53,13 @@ func (h *Holder) Update(newCfg *Config) error {
 // Path returns the config file path this holder is linked to.
 func (h *Holder) Path() string { return h.path }
 
-// SaveDefault writes the default config to path.
+// SaveDefault writes the default config to path, creating parent directories
+// as needed.  This is the correct way to initialise a config at a new location
+// (e.g. %ProgramData%\SQMeter SafetyMonitor\config.json on first install).
 func SaveDefault(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return fmt.Errorf("creating config directory: %w", err)
+	}
 	return saveToFile(Defaults(), path)
 }
 
