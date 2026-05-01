@@ -301,9 +301,13 @@ func readDiscoveryReply(addr string, timeout time.Duration) (map[string]int, err
 func waitForDiscoveryReplies(t *testing.T, addr string, errCh <-chan error, want int) map[int]bool {
 	t.Helper()
 
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(5 * time.Second)
 	replies := make(map[int]bool)
 	var lastErr error
+
+	// With SO_REUSEADDR on Windows, multiple listeners on the same port means
+	// each UDP packet goes to ONE listener (OS load balances). We need to send
+	// multiple queries from different source ports to hit all responders.
 	for time.Now().Before(deadline) {
 		select {
 		case err := <-errCh:
@@ -311,14 +315,13 @@ func waitForDiscoveryReplies(t *testing.T, addr string, errCh <-chan error, want
 		default:
 		}
 
-		// Query multiple times to collect replies from all responders
-		got, err := readDiscoveryReplies(addr, 200*time.Millisecond)
+		// Send a fresh discovery query - new connection = new source port
+		// This gives OS a chance to route to a different responder
+		reply, err := readDiscoveryReply(addr, 100*time.Millisecond)
 		if err != nil {
 			lastErr = err
 		} else {
-			for port := range got {
-				replies[port] = true
-			}
+			replies[reply["AlpacaPort"]] = true
 		}
 
 		if len(replies) >= want {
