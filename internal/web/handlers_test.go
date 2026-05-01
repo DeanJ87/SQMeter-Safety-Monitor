@@ -721,3 +721,108 @@ func TestDiagnostics_PollerTimestamps(t *testing.T) {
 		t.Errorf("diagnostics.poller.lastError: want %q, got %q", "timeout connecting to device", *report.Poller.LastError)
 	}
 }
+
+// ---------- optional float fields coverage ----------------------------------
+
+func TestPostSetup_WithOptionalFloats(t *testing.T) {
+	h, cfgHolder, _ := newTestWebHandler(t, true, safeEv())
+	form := url.Values{}
+	form.Set("SQMETER_BASE_URL", "http://sqmeter.local")
+	form.Set("ALPACA_HTTP_BIND", "127.0.0.1")
+	form.Set("ALPACA_HTTP_PORT", "11111")
+	form.Set("ALPACA_DISCOVERY_PORT", "32227")
+	form.Set("POLL_INTERVAL_SECONDS", "5")
+	form.Set("STALE_AFTER_SECONDS", "30")
+	form.Set("FAIL_CLOSED", "true")
+	form.Set("CONNECTED_ON_STARTUP", "true")
+	form.Set("CLOUD_COVER_UNSAFE_PERCENT", "80")
+	form.Set("CLOUD_COVER_CAUTION_PERCENT", "50")
+	form.Set("MANUAL_OVERRIDE", "auto")
+	form.Set("LOG_LEVEL", "info")
+	form.Set("SQM_MIN_SAFE", "18.5")
+	form.Set("HUMIDITY_MAX_SAFE", "85.0")
+	form.Set("DEWPOINT_MARGIN_MIN_C", "2.0")
+
+	w := serve(t, h, http.MethodPost, "/setup", form.Encode())
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("POST /setup: want 303, got %d", w.Code)
+	}
+
+	cfg := cfgHolder.Get()
+	if cfg.SQMMinSafe == nil || *cfg.SQMMinSafe != 18.5 {
+		t.Errorf("SQMMinSafe: want 18.5, got %v", cfg.SQMMinSafe)
+	}
+	if cfg.HumidityMaxSafe == nil || *cfg.HumidityMaxSafe != 85.0 {
+		t.Errorf("HumidityMaxSafe: want 85.0, got %v", cfg.HumidityMaxSafe)
+	}
+	if cfg.DewpointMarginMinC == nil || *cfg.DewpointMarginMinC != 2.0 {
+		t.Errorf("DewpointMarginMinC: want 2.0, got %v", cfg.DewpointMarginMinC)
+	}
+}
+
+func TestPostSetup_InvalidOptionalFloat_Ignores(t *testing.T) {
+	h, cfgHolder, _ := newTestWebHandler(t, true, safeEv())
+	
+	// Set valid optional floats first
+	cfg := cfgHolder.Get()
+	sqmVal := 18.5
+	cfg.SQMMinSafe = &sqmVal
+	cfgHolder.Update(cfg)
+	
+	form := url.Values{}
+	form.Set("SQMETER_BASE_URL", "http://sqmeter.local")
+	form.Set("ALPACA_HTTP_BIND", "127.0.0.1")
+	form.Set("ALPACA_HTTP_PORT", "11111")
+	form.Set("ALPACA_DISCOVERY_PORT", "32227")
+	form.Set("POLL_INTERVAL_SECONDS", "5")
+	form.Set("STALE_AFTER_SECONDS", "30")
+	form.Set("FAIL_CLOSED", "true")
+	form.Set("CONNECTED_ON_STARTUP", "true")
+	form.Set("CLOUD_COVER_UNSAFE_PERCENT", "80")
+	form.Set("CLOUD_COVER_CAUTION_PERCENT", "50")
+	form.Set("MANUAL_OVERRIDE", "auto")
+	form.Set("LOG_LEVEL", "info")
+	form.Set("SQM_MIN_SAFE", "not-a-number")
+
+	w := serve(t, h, http.MethodPost, "/setup", form.Encode())
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("POST /setup: want 303, got %d", w.Code)
+	}
+
+	// Invalid value should be ignored, original value retained
+	cfg = cfgHolder.Get()
+	if cfg.SQMMinSafe == nil || *cfg.SQMMinSafe != 18.5 {
+		t.Errorf("SQMMinSafe should remain 18.5 after invalid input, got %v", cfg.SQMMinSafe)
+	}
+}
+
+func TestGetSetup_DisplaysOptionalFloats(t *testing.T) {
+	h, cfgHolder, _ := newTestWebHandler(t, true, safeEv())
+	
+	// Set optional float values
+	cfg := cfgHolder.Get()
+	sqmVal := 18.75
+	humidVal := 85.5
+	dewVal := 2.3
+	cfg.SQMMinSafe = &sqmVal
+	cfg.HumidityMaxSafe = &humidVal
+	cfg.DewpointMarginMinC = &dewVal
+	cfgHolder.Update(cfg)
+
+	w := serve(t, h, http.MethodGet, "/setup", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /setup: want 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "18.75") {
+		t.Error("GET /setup: expected SQM_MIN_SAFE value 18.75 in response")
+	}
+	if !strings.Contains(body, "85.5") {
+		t.Error("GET /setup: expected HUMIDITY_MAX_SAFE value 85.5 in response")
+	}
+	if !strings.Contains(body, "2.3") {
+		t.Error("GET /setup: expected DEWPOINT_MARGIN_MIN_C value 2.3 in response")
+	}
+}
+

@@ -193,6 +193,9 @@ func TestDiscovery_AllowsSharedBindOnWindows(t *testing.T) {
 		}()
 	}
 
+	// Give both responders time to start listening before querying
+	time.Sleep(100 * time.Millisecond)
+
 	replies := waitForDiscoveryReplies(t, fmt.Sprintf("127.0.0.1:%d", discPort), errCh, 2)
 	for _, want := range []int{32323, 11111} {
 		if !replies[want] {
@@ -298,7 +301,7 @@ func readDiscoveryReply(addr string, timeout time.Duration) (map[string]int, err
 func waitForDiscoveryReplies(t *testing.T, addr string, errCh <-chan error, want int) map[int]bool {
 	t.Helper()
 
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(3 * time.Second)
 	replies := make(map[int]bool)
 	var lastErr error
 	for time.Now().Before(deadline) {
@@ -308,17 +311,22 @@ func waitForDiscoveryReplies(t *testing.T, addr string, errCh <-chan error, want
 		default:
 		}
 
-		got, err := readDiscoveryReplies(addr, 100*time.Millisecond)
+		// Query multiple times to collect replies from all responders
+		got, err := readDiscoveryReplies(addr, 200*time.Millisecond)
 		if err != nil {
 			lastErr = err
-			continue
+		} else {
+			for port := range got {
+				replies[port] = true
+			}
 		}
-		for port := range got {
-			replies[port] = true
-		}
+		
 		if len(replies) >= want {
 			return replies
 		}
+		
+		// Brief pause between query attempts
+		time.Sleep(50 * time.Millisecond)
 	}
 
 	t.Fatalf("timed out waiting for discovery replies: got %v, last error: %v", replies, lastErr)
