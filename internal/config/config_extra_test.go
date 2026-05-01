@@ -190,49 +190,56 @@ func TestSaveDefault(t *testing.T) {
 // ---------- validate edge cases ----------------------------------------------
 
 func TestLoad_InvalidPortRange(t *testing.T) {
-	t.Setenv("ALPACA_HTTP_PORT", "99999")
-	_, err := config.Load("")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	os.WriteFile(path, []byte(`{"SQMETER_BASE_URL":"http://test.local","ALPACA_HTTP_PORT":99999}`), 0600)
+	_, err := config.Load(path)
 	if err == nil {
 		t.Error("expected error for port 99999 (out of range)")
 	}
 }
 
 func TestLoad_ZeroPort(t *testing.T) {
-	t.Setenv("ALPACA_HTTP_PORT", "0")
-	_, err := config.Load("")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	os.WriteFile(path, []byte(`{"SQMETER_BASE_URL":"http://test.local","ALPACA_HTTP_PORT":0}`), 0600)
+	_, err := config.Load(path)
 	if err == nil {
 		t.Error("expected error for port 0")
 	}
 }
 
 func TestLoad_StaleAfterLessThanPollInterval(t *testing.T) {
-	t.Setenv("POLL_INTERVAL_SECONDS", "60")
-	t.Setenv("STALE_AFTER_SECONDS", "10")
-	_, err := config.Load("")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	os.WriteFile(path, []byte(`{"SQMETER_BASE_URL":"http://test.local","POLL_INTERVAL_SECONDS":60,"STALE_AFTER_SECONDS":10}`), 0600)
+	_, err := config.Load(path)
 	if err == nil {
 		t.Error("expected error when STALE_AFTER_SECONDS < POLL_INTERVAL_SECONDS")
 	}
 }
 
-func TestLoad_ParseBoolEnv(t *testing.T) {
-	for _, v := range []string{"true", "1", "yes", "on", "TRUE", "YES"} {
-		t.Setenv("FAIL_CLOSED", v)
-		cfg, err := config.Load("")
-		if err != nil {
-			t.Fatalf("Load (FAIL_CLOSED=%q): %v", v, err)
-		}
-		if !cfg.FailClosed {
-			t.Errorf("FAIL_CLOSED=%q should parse as true", v)
-		}
+func TestLoad_BoolFieldsFromConfigFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+
+	// FailClosed = false via config file
+	os.WriteFile(path, []byte(`{"SQMETER_BASE_URL":"http://test.local","FAIL_CLOSED":false}`), 0600)
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
 	}
-	for _, v := range []string{"false", "0", "no", "off", "FALSE"} {
-		t.Setenv("FAIL_CLOSED", v)
-		cfg, err := config.Load("")
-		if err != nil {
-			t.Fatalf("Load (FAIL_CLOSED=%q): %v", v, err)
-		}
-		if cfg.FailClosed {
-			t.Errorf("FAIL_CLOSED=%q should parse as false", v)
-		}
+	if cfg.FailClosed {
+		t.Error("FailClosed should be false when set in config file")
+	}
+
+	// FailClosed = true via config file
+	os.WriteFile(path, []byte(`{"SQMETER_BASE_URL":"http://test.local","FAIL_CLOSED":true}`), 0600)
+	cfg, err = config.Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.FailClosed {
+		t.Error("FailClosed should be true when set in config file")
 	}
 }

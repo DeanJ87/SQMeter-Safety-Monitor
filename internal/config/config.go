@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strconv"
-	"strings"
 )
 
-// Config holds all runtime configuration. Fields use the same names as
-// the corresponding environment variables for clarity.
+// Config holds all runtime configuration for sqmeter-alpaca-safetymonitor.
+// Settings are loaded from a JSON config file (see Load). The only
+// environment variable that influences runtime behaviour is LOG_LEVEL, which
+// is a process/logging concern and not a configuration file setting.
 type Config struct {
 	SQMeterBaseURL       string   `json:"SQMETER_BASE_URL"`
 	AlpacaHTTPBind       string   `json:"ALPACA_HTTP_BIND"`
@@ -52,8 +52,12 @@ func Defaults() *Config {
 	}
 }
 
-// Load reads config from path (may be empty), then applies environment
-// variable overrides.  Returns an error if the file exists but is invalid.
+// Load reads config from path (may be empty) and applies LOG_LEVEL from the
+// environment if set. Returns an error if the file exists but is invalid.
+//
+// Config loading order: defaults -> config file -> validation.
+// The only environment variable applied at runtime is LOG_LEVEL.
+// All other settings must be set in the config file.
 func Load(path string) (*Config, error) {
 	cfg := Defaults()
 
@@ -69,75 +73,16 @@ func Load(path string) (*Config, error) {
 		}
 	}
 
-	applyEnv(cfg)
+	// LOG_LEVEL is the only env var applied at runtime; it is a
+	// process/logging concern rather than an application setting.
+	if v := os.Getenv("LOG_LEVEL"); v != "" {
+		cfg.LogLevel = v
+	}
 
 	if err := validate(cfg); err != nil {
 		return nil, err
 	}
 	return cfg, nil
-}
-
-func applyEnv(cfg *Config) {
-	strEnv := func(key string, dst *string) {
-		if v := os.Getenv(key); v != "" {
-			*dst = v
-		}
-	}
-	intEnv := func(key string, dst *int) {
-		if v := os.Getenv(key); v != "" {
-			if n, err := strconv.Atoi(v); err == nil {
-				*dst = n
-			}
-		}
-	}
-	floatEnv := func(key string, dst *float64) {
-		if v := os.Getenv(key); v != "" {
-			if f, err := strconv.ParseFloat(v, 64); err == nil {
-				*dst = f
-			}
-		}
-	}
-	floatPtrEnv := func(key string, dst **float64) {
-		if v := os.Getenv(key); v != "" {
-			if f, err := strconv.ParseFloat(v, 64); err == nil {
-				*dst = &f
-			}
-		}
-	}
-	boolEnv := func(key string, dst *bool) {
-		if v := os.Getenv(key); v != "" {
-			*dst = parseBool(v, *dst)
-		}
-	}
-
-	strEnv("SQMETER_BASE_URL", &cfg.SQMeterBaseURL)
-	strEnv("ALPACA_HTTP_BIND", &cfg.AlpacaHTTPBind)
-	intEnv("ALPACA_HTTP_PORT", &cfg.AlpacaHTTPPort)
-	intEnv("ALPACA_DISCOVERY_PORT", &cfg.AlpacaDiscoveryPort)
-	intEnv("POLL_INTERVAL_SECONDS", &cfg.PollIntervalSeconds)
-	intEnv("STALE_AFTER_SECONDS", &cfg.StaleAfterSeconds)
-	boolEnv("FAIL_CLOSED", &cfg.FailClosed)
-	boolEnv("CONNECTED_ON_STARTUP", &cfg.ConnectedOnStartup)
-	floatEnv("CLOUD_COVER_UNSAFE_PERCENT", &cfg.CloudCoverUnsafePct)
-	floatEnv("CLOUD_COVER_CAUTION_PERCENT", &cfg.CloudCoverCautionPct)
-	boolEnv("REQUIRE_LIGHT_SENSOR_STATUS_OK", &cfg.RequireLightStatus)
-	boolEnv("REQUIRE_ENVIRONMENT_STATUS_OK", &cfg.RequireEnvStatus)
-	boolEnv("REQUIRE_IR_TEMPERATURE_STATUS_OK", &cfg.RequireIRStatus)
-	floatPtrEnv("SQM_MIN_SAFE", &cfg.SQMMinSafe)
-	floatPtrEnv("HUMIDITY_MAX_SAFE", &cfg.HumidityMaxSafe)
-	floatPtrEnv("DEWPOINT_MARGIN_MIN_C", &cfg.DewpointMarginMinC)
-	strEnv("MANUAL_OVERRIDE", &cfg.ManualOverride)
-	strEnv("LOG_LEVEL", &cfg.LogLevel)
-}
-
-func parseBool(s string, def bool) bool {
-	switch strings.ToLower(strings.TrimSpace(s)) {
-	case "true", "1", "yes", "on":
-		return true
-	case "false", "0", "no", "off":
-		return false
-	}
-	return def
 }
 
 func validate(cfg *Config) error {

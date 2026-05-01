@@ -29,8 +29,8 @@ It answers one question: **"Is it safe for the observatory to operate right now?
 ## Quick start (Windows)
 
 1. Download `sqmeter-alpaca-safetymonitor-windows-amd64.exe` from [Releases](../../releases)
-2. Create a `config.json` next to the exe (see [Configuration](#configuration)), or set environment variables
-3. Double-click the exe — a console window will open
+2. Double-click the exe — a console window will open and the setup page will open automatically on first run
+3. Complete setup at `http://localhost:11111/setup` to point the service at your SQMeter
 4. Browse to `http://localhost:11111` to see the dashboard
 5. In N.I.N.A. → Equipment → Safety Monitor → select **ASCOM Alpaca** and connect
 
@@ -38,7 +38,9 @@ It answers one question: **"Is it safe for the observatory to operate right now?
 
 ## Configuration
 
-Copy `.env.example` and rename it to set environment variables, **or** create a `config.json` with the same keys:
+Configuration is managed through the web setup UI at `http://localhost:11111/setup`, which reads and writes `config.json` next to the executable.
+
+You can also edit `config.json` directly:
 
 ```json
 {
@@ -72,7 +74,21 @@ Copy `.env.example` and rename it to set environment variables, **or** create a 
 
 Binding `ALPACA_HTTP_BIND` to `0.0.0.0` exposes the service to the network. Only use it on a trusted LAN or behind firewall controls.
 
-Environment variables always override the config file.
+### Config file is the source of truth
+
+`config.json` is the authoritative source for all application settings. The setup UI reads and writes it directly. No `.env` file is auto-loaded, and broad application-setting environment variables are not supported.
+
+The only environment variable that influences runtime behaviour is `LOG_LEVEL` (a process/logging concern). All other settings must be in `config.json`.
+
+### CLI flags
+
+| Flag | Description |
+|------|-------------|
+| `--config <path>` | Path to the JSON config file (default: `config.json` next to the exe) |
+| `--write-default-config` | Write default settings to `--config` path and exit |
+| `--check-config` | Validate the config file and exit |
+
+For CI or scripted testing, generate a temporary config file and pass it with `--config` rather than relying on environment variables.
 
 ### Sensor status codes
 
@@ -95,12 +111,12 @@ The bridge declares UNSAFE if **any** of the following are true:
 - `MANUAL_OVERRIDE = force_unsafe`
 - SQMeter unreachable and `FAIL_CLOSED = true`
 - No successful data yet and `FAIL_CLOSED = true`
-- Most recent successful data is older than `STALE_AFTER_SECONDS`
+- Most recent successful data is older than `STALE_AFTER_SECONDS` seconds
 - A required sensor reports status ≠ 0
 - Cloud cover ≥ `CLOUD_COVER_UNSAFE_PERCENT`
-- `SQM_MIN_SAFE` set and SQM < minimum
-- `HUMIDITY_MAX_SAFE` set and humidity > maximum
-- `DEWPOINT_MARGIN_MIN_C` set and (temperature − dew point) < margin
+- `SQM_MIN_SAFE` is set and SQM < minimum
+- `HUMIDITY_MAX_SAFE` is set and humidity > maximum
+- `DEWPOINT_MARGIN_MIN_C` is set and (temperature − dew point) < margin
 
 The web UI and `/status.json` always show the reason(s) for any UNSAFE state.
 
