@@ -14,6 +14,7 @@
 #   SQM_PORT      port for the mock SQMeter server  (default: 18080)
 #   ALPACA_PORT   port for the Alpaca service        (default: 11111)
 #   SERVICE_BIN   path to the built service binary   (default: bin/sqmeter-alpaca-safetymonitor)
+#   LOG_LEVEL     log verbosity for the service       (default: info)
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -42,12 +43,37 @@ if ! $IS_MACOS; then
     fi
 fi
 
+# Write a temporary config file for this conformance run.
+# config.json is the source of truth; env vars do not override application settings.
+CONFORM_CFG_DIR="$(mktemp -d)"
+CONFORM_CFG="${CONFORM_CFG_DIR}/config.json"
+cat > "$CONFORM_CFG" <<EOF
+{
+  "SQMETER_BASE_URL": "http://127.0.0.1:${SQM_PORT}",
+  "ALPACA_HTTP_BIND": "127.0.0.1",
+  "ALPACA_HTTP_PORT": ${ALPACA_PORT},
+  "ALPACA_DISCOVERY_PORT": 32227,
+  "POLL_INTERVAL_SECONDS": 1,
+  "STALE_AFTER_SECONDS": 10,
+  "CONNECTED_ON_STARTUP": true,
+  "FAIL_CLOSED": false,
+  "CLOUD_COVER_UNSAFE_PERCENT": 80,
+  "CLOUD_COVER_CAUTION_PERCENT": 50,
+  "REQUIRE_LIGHT_SENSOR_STATUS_OK": true,
+  "REQUIRE_ENVIRONMENT_STATUS_OK": true,
+  "REQUIRE_IR_TEMPERATURE_STATUS_OK": true,
+  "MANUAL_OVERRIDE": "auto",
+  "LOG_LEVEL": "info"
+}
+EOF
+
 SQM_PID=""
 SVC_PID=""
 
 cleanup() {
     [ -n "$SQM_PID" ] && kill "$SQM_PID" 2>/dev/null || true
     [ -n "$SVC_PID" ] && kill "$SVC_PID" 2>/dev/null || true
+    rm -rf "$CONFORM_CFG_DIR"
 }
 trap cleanup EXIT
 
@@ -55,17 +81,11 @@ trap cleanup EXIT
 python3 "$REPO_ROOT/scripts/mock-sqm.py" "$SQM_PORT" &
 SQM_PID=$!
 
-# Start Alpaca service pointing at the mock with fast polling.
-# FAIL_CLOSED=false so the service reports safe even before the first poll lands.
-SQMETER_BASE_URL="http://127.0.0.1:${SQM_PORT}" \
-ALPACA_HTTP_BIND="127.0.0.1" \
-ALPACA_HTTP_PORT="$ALPACA_PORT" \
-ALPACA_DISCOVERY_PORT=32227 \
-POLL_INTERVAL_SECONDS=1 \
-STALE_AFTER_SECONDS=10 \
-CONNECTED_ON_STARTUP=true \
-FAIL_CLOSED=false \
-  "$SERVICE_BIN" &
+# Start Alpaca service using the temporary config file.
+# FAIL_CLOSED=false in the config so the service reports safe even before the
+# first poll lands (required for ConformU to see IsSafe=true on startup).
+LOG_LEVEL="${LOG_LEVEL:-info}" \
+  "$SERVICE_BIN" --config "$CONFORM_CFG" &
 SVC_PID=$!
 
 # Wait for the Alpaca management endpoint to respond

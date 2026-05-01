@@ -48,11 +48,9 @@ func (h *Holder) Update(newCfg *Config) error {
 // Path returns the config file path this holder is linked to.
 func (h *Holder) Path() string { return h.path }
 
-// SaveDefault writes default config (plus any provided env overrides) to path.
+// SaveDefault writes the default config to path.
 func SaveDefault(path string) error {
-	cfg := Defaults()
-	applyEnv(cfg)
-	return saveToFile(cfg, path)
+	return saveToFile(Defaults(), path)
 }
 
 func saveToFile(cfg *Config, path string) error {
