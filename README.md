@@ -235,6 +235,32 @@ and how to troubleshoot conflicts with ASCOM Alpaca Simulators, see
 
 ---
 
+## Web-based service controls
+
+The dashboard at `http://localhost:11111/` includes **Restart service** and
+**Stop service** buttons once the service is running. Both actions require a
+browser confirmation before executing.
+
+- **Restart** — the process exits with code 1. If the service manager is
+  configured to restart on failure (Windows Service recovery options, NSSM
+  `AppExit` policy, or `systemd Restart=on-failure`), the process restarts
+  automatically. If no restart policy is configured the process simply exits.
+- **Stop** — the process exits cleanly (code 0) and stays stopped until
+  manually restarted. N.I.N.A. and all Alpaca clients lose safety integration
+  while the service is stopped.
+
+Both controls use `POST` requests; plain navigation links (`GET`) cannot
+trigger them. If the service is bound to a non-loopback address
+(`ALPACA_HTTP_BIND=0.0.0.0`) the dashboard displays a network-reachability
+warning next to the controls.
+
+> **Note:** True automatic restart after a web-triggered restart is only
+> guaranteed when the service manager is explicitly configured for it. The
+> service itself cannot restart its own process; it signals intent through the
+> exit code.
+
+---
+
 ## Running as a Windows service
 
 ### Option A: NSSM (recommended)
