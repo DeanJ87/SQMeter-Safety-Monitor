@@ -796,6 +796,162 @@ func TestPostSetup_InvalidOptionalFloat_Ignores(t *testing.T) {
 	}
 }
 
+// ---------- POST /api/service/restart & /api/service/stop -------------------
+
+func TestServiceRestart_WithCallback_Returns200(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	called := make(chan struct{}, 1)
+	h.WithServiceControl(func() { called <- struct{}{} }, nil)
+
+	w := serve(t, h, http.MethodPost, "/api/service/restart", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("POST /api/service/restart: want 200, got %d — body: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		OK      bool   `json:"ok"`
+		Message string `json:"message"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("POST /api/service/restart: invalid JSON: %v", err)
+	}
+	if !resp.OK {
+		t.Errorf("POST /api/service/restart: want ok=true, got false; message: %s", resp.Message)
+	}
+	if resp.Message == "" {
+		t.Error("POST /api/service/restart: want non-empty message")
+	}
+}
+
+func TestServiceStop_WithCallback_Returns200(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	called := make(chan struct{}, 1)
+	h.WithServiceControl(nil, func() { called <- struct{}{} })
+
+	w := serve(t, h, http.MethodPost, "/api/service/stop", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("POST /api/service/stop: want 200, got %d — body: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		OK      bool   `json:"ok"`
+		Message string `json:"message"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("POST /api/service/stop: invalid JSON: %v", err)
+	}
+	if !resp.OK {
+		t.Errorf("POST /api/service/stop: want ok=true, got false; message: %s", resp.Message)
+	}
+	if resp.Message == "" {
+		t.Error("POST /api/service/stop: want non-empty message")
+	}
+}
+
+func TestServiceRestart_WithoutCallback_Returns501(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	// no WithServiceControl call
+
+	w := serve(t, h, http.MethodPost, "/api/service/restart", "")
+	if w.Code != http.StatusNotImplemented {
+		t.Errorf("POST /api/service/restart without callback: want 501, got %d", w.Code)
+	}
+	var resp struct {
+		OK bool `json:"ok"`
+	}
+	json.NewDecoder(w.Body).Decode(&resp) //nolint:errcheck
+	if resp.OK {
+		t.Error("POST /api/service/restart without callback: want ok=false")
+	}
+}
+
+func TestServiceStop_WithoutCallback_Returns501(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	// no WithServiceControl call
+
+	w := serve(t, h, http.MethodPost, "/api/service/stop", "")
+	if w.Code != http.StatusNotImplemented {
+		t.Errorf("POST /api/service/stop without callback: want 501, got %d", w.Code)
+	}
+	var resp struct {
+		OK bool `json:"ok"`
+	}
+	json.NewDecoder(w.Body).Decode(&resp) //nolint:errcheck
+	if resp.OK {
+		t.Error("POST /api/service/stop without callback: want ok=false")
+	}
+}
+
+func TestServiceRestart_GET_DoesNotTriggerAction(t *testing.T) {
+	// GET /api/service/restart falls through to the Dashboard catch-all ("GET /")
+	// and never calls the service callback. This is the intended safety behaviour:
+	// service actions require an explicit POST.
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	triggered := false
+	h.WithServiceControl(func() { triggered = true }, nil)
+
+	w := serve(t, h, http.MethodGet, "/api/service/restart", "")
+	if w.Code != http.StatusOK {
+		t.Errorf("GET /api/service/restart: want 200 (dashboard fallback), got %d", w.Code)
+	}
+	if triggered {
+		t.Error("GET /api/service/restart: must not trigger restart callback")
+	}
+	// Must not return service-control JSON
+	if strings.Contains(w.Body.String(), `"ok"`) {
+		t.Error("GET /api/service/restart: must not return service-control JSON")
+	}
+}
+
+func TestServiceStop_GET_DoesNotTriggerAction(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	triggered := false
+	h.WithServiceControl(nil, func() { triggered = true })
+
+	w := serve(t, h, http.MethodGet, "/api/service/stop", "")
+	if w.Code != http.StatusOK {
+		t.Errorf("GET /api/service/stop: want 200 (dashboard fallback), got %d", w.Code)
+	}
+	if triggered {
+		t.Error("GET /api/service/stop: must not trigger stop callback")
+	}
+	if strings.Contains(w.Body.String(), `"ok"`) {
+		t.Error("GET /api/service/stop: must not return service-control JSON")
+	}
+}
+
+func TestDashboard_ServiceControlsVisible_WhenWired(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	h.WithServiceControl(func() {}, func() {})
+
+	w := serve(t, h, http.MethodGet, "/", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("dashboard: want 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "service-controls") {
+		t.Error("dashboard: expected service-controls section when callbacks wired")
+	}
+	if !strings.Contains(body, "Restart service") {
+		t.Error("dashboard: expected 'Restart service' button")
+	}
+	if !strings.Contains(body, "Stop service") {
+		t.Error("dashboard: expected 'Stop service' button")
+	}
+}
+
+func TestDashboard_ServiceControlsHidden_WhenNotWired(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	// no WithServiceControl
+
+	w := serve(t, h, http.MethodGet, "/", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("dashboard: want 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if strings.Contains(body, "service-controls") {
+		t.Error("dashboard: service-controls section should be absent when not wired")
+	}
+}
+
 func TestGetSetup_DisplaysOptionalFloats(t *testing.T) {
 	h, cfgHolder, _ := newTestWebHandler(t, true, safeEv())
 
