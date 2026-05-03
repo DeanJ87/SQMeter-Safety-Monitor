@@ -678,3 +678,133 @@ func TestOC_ClientTransactionID_Echoed(t *testing.T) {
 		t.Errorf("ClientTransactionID: want 77, got %d", env.ClientTransactionID)
 	}
 }
+
+// ---------- driverinfo / driverversion ---------------------------------------
+
+func TestOC_GetDriverInfo_NonEmpty(t *testing.T) {
+	h := newOCHandler(true, ocStateWithSensors())
+	w := ocGET(t, h, "/api/v1/observingconditions/0/driverinfo")
+	var resp alpaca.Response[string]
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp.Value == "" {
+		t.Error("DriverInfo should not be empty")
+	}
+}
+
+func TestOC_GetDriverVersion_MatchesVersion(t *testing.T) {
+	h := newOCHandler(true, ocStateWithSensors())
+	w := ocGET(t, h, "/api/v1/observingconditions/0/driverversion")
+	var resp alpaca.Response[string]
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp.Value != "0.1.0-test" {
+		t.Errorf("DriverVersion: want 0.1.0-test, got %q", resp.Value)
+	}
+}
+
+// ---------- PutConnected true/false ------------------------------------------
+
+func TestOC_PutConnected_SetTrue(t *testing.T) {
+	cfgHolder := config.NewHolder(config.Defaults(), "")
+	holder := state.NewHolder(false)
+	h := alpaca.NewOC(cfgHolder, holder, "uuid", "0.1.0", nil)
+	w := ocPUT(t, h, "/api/v1/observingconditions/0/connected",
+		"Connected=true&ClientID=1&ClientTransactionID=1")
+	var resp alpaca.VoidResponse
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp.ErrorNumber != 0 {
+		t.Errorf("unexpected error: %v", resp.ErrorMessage)
+	}
+	if !holder.IsConnected() {
+		t.Error("expected connected after PUT Connected=true")
+	}
+}
+
+func TestOC_PutConnected_SetFalse(t *testing.T) {
+	cfgHolder := config.NewHolder(config.Defaults(), "")
+	holder := state.NewHolder(true)
+	h := alpaca.NewOC(cfgHolder, holder, "uuid", "0.1.0", nil)
+	w := ocPUT(t, h, "/api/v1/observingconditions/0/connected",
+		"Connected=false&ClientID=1&ClientTransactionID=1")
+	var resp alpaca.VoidResponse
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp.ErrorNumber != 0 {
+		t.Errorf("unexpected error: %v", resp.ErrorMessage)
+	}
+	if holder.IsConnected() {
+		t.Error("expected disconnected after PUT Connected=false")
+	}
+}
+
+// ---------- sensor error coverage for remaining sensor functions -------------
+
+func TestOC_CloudCover_IRSensorError_ReturnsUnspecified(t *testing.T) {
+	ev := ocStateWithSensors()
+	ev.RawSensors.IRTemperature.Status = 2
+	h := newOCHandler(true, ev)
+	w := ocGET(t, h, "/api/v1/observingconditions/0/cloudcover")
+	var resp alpaca.Response[float64]
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp.ErrorNumber != alpaca.ErrUnspecified {
+		t.Errorf("want ErrUnspecified (%d), got %d", alpaca.ErrUnspecified, resp.ErrorNumber)
+	}
+}
+
+func TestOC_DewPoint_SensorError_ReturnsUnspecified(t *testing.T) {
+	ev := ocStateWithSensors()
+	ev.RawSensors.Environment.Status = 3 // stale data
+	h := newOCHandler(true, ev)
+	w := ocGET(t, h, "/api/v1/observingconditions/0/dewpoint")
+	var resp alpaca.Response[float64]
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp.ErrorNumber != alpaca.ErrUnspecified {
+		t.Errorf("want ErrUnspecified (%d), got %d", alpaca.ErrUnspecified, resp.ErrorNumber)
+	}
+}
+
+func TestOC_Humidity_SensorError_ReturnsUnspecified(t *testing.T) {
+	ev := ocStateWithSensors()
+	ev.RawSensors.Environment.Status = 1 // not found
+	h := newOCHandler(true, ev)
+	w := ocGET(t, h, "/api/v1/observingconditions/0/humidity")
+	var resp alpaca.Response[float64]
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp.ErrorNumber != alpaca.ErrUnspecified {
+		t.Errorf("want ErrUnspecified (%d), got %d", alpaca.ErrUnspecified, resp.ErrorNumber)
+	}
+}
+
+func TestOC_Pressure_SensorError_ReturnsUnspecified(t *testing.T) {
+	ev := ocStateWithSensors()
+	ev.RawSensors.Environment.Status = 99 // unknown error triggers default branch
+	h := newOCHandler(true, ev)
+	w := ocGET(t, h, "/api/v1/observingconditions/0/pressure")
+	var resp alpaca.Response[float64]
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp.ErrorNumber != alpaca.ErrUnspecified {
+		t.Errorf("want ErrUnspecified (%d), got %d", alpaca.ErrUnspecified, resp.ErrorNumber)
+	}
+}
+
+func TestOC_SkyBrightness_SensorError_ReturnsUnspecified(t *testing.T) {
+	ev := ocStateWithSensors()
+	ev.RawSensors.LightSensor.Status = 3 // stale data
+	h := newOCHandler(true, ev)
+	w := ocGET(t, h, "/api/v1/observingconditions/0/skybrightness")
+	var resp alpaca.Response[float64]
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp.ErrorNumber != alpaca.ErrUnspecified {
+		t.Errorf("want ErrUnspecified (%d), got %d", alpaca.ErrUnspecified, resp.ErrorNumber)
+	}
+}
+
+func TestOC_SkyTemperature_IRSensorError_ReturnsUnspecified(t *testing.T) {
+	ev := ocStateWithSensors()
+	ev.RawSensors.IRTemperature.Status = 1
+	h := newOCHandler(true, ev)
+	w := ocGET(t, h, "/api/v1/observingconditions/0/skytemperature")
+	var resp alpaca.Response[float64]
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp.ErrorNumber != alpaca.ErrUnspecified {
+		t.Errorf("want ErrUnspecified (%d), got %d", alpaca.ErrUnspecified, resp.ErrorNumber)
+	}
+}

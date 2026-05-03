@@ -72,6 +72,37 @@ func TestDefaultUUIDPath_Windows_ProgramData(t *testing.T) {
 	}
 }
 
+// TestDefaultOCUUIDPath_NonWindows verifies that on non-Windows the OC UUID
+// file defaults to the executable directory.
+func TestDefaultOCUUIDPath_NonWindows(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("non-Windows path test skipped on Windows")
+	}
+	exeDir := "/opt/sqmeter"
+	got := config.DefaultOCUUIDPath(exeDir)
+	want := filepath.Join(exeDir, "device-oc-uuid.txt")
+	if got != want {
+		t.Errorf("DefaultOCUUIDPath(%q) = %q, want %q", exeDir, got, want)
+	}
+}
+
+// TestDefaultOCUUIDPath_Windows_ProgramData verifies the Windows ProgramData
+// OC UUID path.
+func TestDefaultOCUUIDPath_Windows_ProgramData(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows ProgramData path test only runs on Windows")
+	}
+	pd := os.Getenv("ProgramData")
+	if pd == "" {
+		t.Skip("ProgramData not set")
+	}
+	got := config.DefaultOCUUIDPath("/any/exe/dir")
+	want := filepath.Join(pd, config.AppDataDirName, "device-oc-uuid.txt")
+	if got != want {
+		t.Errorf("DefaultOCUUIDPath on Windows = %q, want %q", got, want)
+	}
+}
+
 // TestSaveDefault_CreatesParentDirs verifies that SaveDefault creates any
 // missing parent directories (required for the ProgramData path on first install).
 func TestSaveDefault_CreatesParentDirs(t *testing.T) {
