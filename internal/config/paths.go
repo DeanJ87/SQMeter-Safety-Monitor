@@ -42,3 +42,17 @@ func DefaultUUIDPath(exeDir string) string {
 	}
 	return filepath.Join(exeDir, "device-uuid.txt")
 }
+
+// DefaultOCUUIDPath returns the platform-appropriate default path for the
+// ObservingConditions device UUID file.
+//
+// On Windows:  %ProgramData%\SQMeter SafetyMonitor\device-oc-uuid.txt
+// Other:       <exeDir>/device-oc-uuid.txt
+func DefaultOCUUIDPath(exeDir string) string {
+	if runtime.GOOS == "windows" {
+		if pd := os.Getenv("ProgramData"); pd != "" {
+			return filepath.Join(pd, AppDataDirName, "device-oc-uuid.txt")
+		}
+	}
+	return filepath.Join(exeDir, "device-oc-uuid.txt")
+}

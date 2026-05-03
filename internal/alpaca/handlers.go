@@ -24,12 +24,19 @@ const (
 
 // Handler serves all ASCOM Alpaca endpoints for the SafetyMonitor device.
 type Handler struct {
-	cfgHolder  *config.Holder
-	holder     *state.Holder
-	serverTxID atomic.Uint32
-	deviceUUID string
-	version    string
-	refreshFn  func(ctx context.Context)
+	cfgHolder    *config.Holder
+	holder       *state.Holder
+	serverTxID   atomic.Uint32
+	deviceUUID   string
+	version      string
+	refreshFn    func(ctx context.Context)
+	extraDevices []ConfiguredDevice
+}
+
+// AddConfiguredDevice appends a device to the list returned by
+// /management/v1/configureddevices. Call this before the server starts.
+func (h *Handler) AddConfiguredDevice(dev ConfiguredDevice) {
+	h.extraDevices = append(h.extraDevices, dev)
 }
 
 // New creates a Handler.  refreshFn is called synchronously by the "refresh"
@@ -192,9 +199,11 @@ func (h *Handler) GetServerDescription(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) GetConfiguredDevices(w http.ResponseWriter, r *http.Request) {
 	_, clientTxID := parseGetParams(r)
-	writeJSON(w, okResp(clientTxID, h.nextTxID(), []ConfiguredDevice{
+	devices := []ConfiguredDevice{
 		{DeviceName: deviceName, DeviceType: deviceType, DeviceNumber: deviceNumber, UniqueID: h.deviceUUID},
-	}))
+	}
+	devices = append(devices, h.extraDevices...)
+	writeJSON(w, okResp(clientTxID, h.nextTxID(), devices))
 }
 
 // ---------- Common device GET endpoints --------------------------------------
