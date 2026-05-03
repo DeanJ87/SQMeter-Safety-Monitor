@@ -39,8 +39,9 @@ var (
 // ---------- service wrapper --------------------------------------------------
 
 type program struct {
-	cfgPath  string
-	uuidPath string
+	cfgPath    string
+	uuidPath   string
+	ocUUIDPath string
 
 	cancel           context.CancelFunc
 	stopped          chan struct{}
@@ -139,12 +140,21 @@ func (p *program) run(ctx context.Context, interactive bool) {
 
 	alpacaHandler := alpaca.New(cfgHolder, stateHolder, deviceUUID, version, pol.PollNow)
 
+	ocDeviceUUID, err := loadOrCreateUUID(p.ocUUIDPath)
+	if err != nil {
+		logger.Warn("could not persist OC device UUID, using ephemeral UUID", "error", err)
+	}
+	logger.Info("OC device UUID", "uuid", ocDeviceUUID)
+	ocHandler := alpaca.NewOC(cfgHolder, stateHolder, ocDeviceUUID, version, pol.PollNow)
+	alpacaHandler.AddConfiguredDevice(ocHandler.ConfiguredDevice())
+
 	disc := discovery.New(cfg.AlpacaDiscoveryPort, cfg.AlpacaHTTPPort, logger)
 	webHandler.WithDiscovery(disc.GetStatus)
 	webHandler.WithVersion(fmt.Sprintf("%s (commit %s, built %s)", version, commit, date))
 
 	mux := http.NewServeMux()
 	alpacaHandler.Register(mux)
+	ocHandler.Register(mux)
 	webHandler.Register(mux)
 
 	srv := &http.Server{
@@ -217,6 +227,7 @@ func main() {
 	var (
 		cfgPath            = flag.String("config", config.DefaultConfigPath(exeDir), "path to JSON config file")
 		uuidPath           = flag.String("uuid-file", config.DefaultUUIDPath(exeDir), "path to persist stable device UUID")
+		ocUUIDPath         = flag.String("oc-uuid-file", config.DefaultOCUUIDPath(exeDir), "path to persist stable ObservingConditions device UUID")
 		svcCmd             = flag.String("service", "", "manage the system service: install|uninstall|start|stop|status")
 		showVersion        = flag.Bool("version", false, "print version and exit")
 		writeDefaultConfig = flag.Bool("write-default-config", false, "write default config to --config path and exit")
@@ -276,8 +287,9 @@ func main() {
 	}
 
 	prg := &program{
-		cfgPath:  *cfgPath,
-		uuidPath: *uuidPath,
+		cfgPath:    *cfgPath,
+		uuidPath:   *uuidPath,
+		ocUUIDPath: *ocUUIDPath,
 	}
 
 	svcConfig := &service.Config{

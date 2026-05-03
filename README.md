@@ -3,7 +3,7 @@
 [![CI](https://github.com/DeanJ87/SQMeter-Safety-Monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/DeanJ87/SQMeter-Safety-Monitor/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/github/DeanJ87/SQMeter-Safety-Monitor/graph/badge.svg?token=I7DHSX92BN)](https://codecov.io/github/DeanJ87/SQMeter-Safety-Monitor)
 
-A standalone **ASCOM Alpaca SafetyMonitor** bridge for the [SQMeter ESP32](https://deanj87.github.io/SQMeter/) sky-quality sensor.
+A standalone **ASCOM Alpaca SafetyMonitor and ObservingConditions** bridge for the [SQMeter ESP32](https://deanj87.github.io/SQMeter/) sky-quality sensor.
 
 Runs as a single `.exe` on your N.I.N.A. Windows machine.  No ASCOM COM drivers, no registration, no Visual Studio templates — pure Alpaca over HTTP/UDP.
 
@@ -16,13 +16,12 @@ Runs as a single `.exe` on your N.I.N.A. Windows machine.  No ASCOM COM drivers,
 - Polls `GET /api/sensors` on your SQMeter every few seconds
 - Evaluates configurable safety rules (cloud cover, SQM, humidity, dew-point margin, sensor health)
 - Exposes a standards-compliant **ASCOM Alpaca SafetyMonitor** device at `http://localhost:11111`
-- Responds to **ASCOM Alpaca UDP discovery** on port 32227 so N.I.N.A. finds it automatically
+- Exposes a standards-compliant **ASCOM Alpaca ObservingConditions** device at the same port
+- Responds to **ASCOM Alpaca UDP discovery** on port 32227 so N.I.N.A. finds both devices automatically
 - Serves a live **web dashboard** at `http://localhost:11111/`
 - Provides a `/status.json` debug endpoint
 
-It answers one question: **"Is it safe for the observatory to operate right now?"**
-
-> **Scope note:** This project is *only* the SafetyMonitor bridge.  An ObservingConditions driver (temperature, humidity, sky brightness, etc. as Alpaca properties) is a separate future project.
+It answers two questions: **"Is it safe for the observatory to operate right now?"** and **"What are the current sky conditions?"**
 
 ---
 
@@ -197,11 +196,25 @@ curl "http://localhost:11111/api/v1/safetymonitor/0/issafe?ClientID=1&ClientTran
 curl "http://localhost:11111/api/v1/safetymonitor/0/connected?ClientID=1&ClientTransactionID=2"
 curl "http://localhost:11111/api/v1/safetymonitor/0/name?ClientID=1&ClientTransactionID=3"
 
+# ObservingConditions
+curl "http://localhost:11111/api/v1/observingconditions/0/temperature?ClientID=1&ClientTransactionID=1"
+curl "http://localhost:11111/api/v1/observingconditions/0/humidity?ClientID=1&ClientTransactionID=2"
+curl "http://localhost:11111/api/v1/observingconditions/0/skyquality?ClientID=1&ClientTransactionID=3"
+curl "http://localhost:11111/api/v1/observingconditions/0/cloudcover?ClientID=1&ClientTransactionID=4"
+curl "http://localhost:11111/api/v1/observingconditions/0/dewpoint?ClientID=1&ClientTransactionID=5"
+curl "http://localhost:11111/api/v1/observingconditions/0/pressure?ClientID=1&ClientTransactionID=6"
+curl "http://localhost:11111/api/v1/observingconditions/0/skytemperature?ClientID=1&ClientTransactionID=7"
+curl "http://localhost:11111/api/v1/observingconditions/0/skybrightness?ClientID=1&ClientTransactionID=8"
+
+# Trigger an immediate sensor refresh (ObservingConditions)
+curl -X PUT http://localhost:11111/api/v1/observingconditions/0/refresh \
+     -d "ClientID=1&ClientTransactionID=20"
+
 # Status / health
 curl http://localhost:11111/status.json
 curl http://localhost:11111/health
 
-# Force refresh via Alpaca action
+# Force refresh via Alpaca action (SafetyMonitor)
 curl -X PUT http://localhost:11111/api/v1/safetymonitor/0/action \
      -d "Action=refresh&ClientID=1&ClientTransactionID=10"
 
@@ -214,6 +227,8 @@ curl -X PUT http://localhost:11111/api/v1/safetymonitor/0/connected \
 
 ## N.I.N.A. setup
 
+### SafetyMonitor
+
 1. Start `sqmeter-alpaca-safetymonitor.exe`
 2. Open N.I.N.A.
 3. Go to **Equipment → Safety Monitor**
@@ -222,11 +237,20 @@ curl -X PUT http://localhost:11111/api/v1/safetymonitor/0/connected \
 6. Select it and click **Connect**
 7. Watch the IsSafe indicator; verify it matches `http://localhost:11111/status.json`
 
+### ObservingConditions
+
+1. Go to **Equipment → Weather**
+2. In the device selector, choose **ASCOM Alpaca**
+3. Click **Refresh** — **SQMeter ObservingConditions** should appear alongside the SafetyMonitor
+4. Select it and click **Connect**
+
+Both devices are served from the same port and share the same SQMeter polling loop — no extra configuration required.
+
 If discovery does not work, manually add the device:
 
 - Host: `127.0.0.1`
 - Port: `11111`
-- Device type: `SafetyMonitor`
+- Device type: `SafetyMonitor` or `ObservingConditions`
 - Device number: `0`
 
 For a full explanation of how Alpaca discovery works, how to verify it manually,
@@ -338,13 +362,36 @@ git push origin v0.1.0
 
 ---
 
+## ObservingConditions properties
+
+| Property | Source | Notes |
+|---|---|---|
+| `cloudcover` | IR temperature differential | Requires IR sensor OK |
+| `dewpoint` | BME280 | Requires env sensor OK |
+| `humidity` | BME280 | Requires env sensor OK |
+| `pressure` | BME280 | Requires env sensor OK |
+| `skybrightness` | TSL2591 lux | Requires light sensor OK |
+| `skyquality` | TSL2591 SQM | Requires light sensor OK |
+| `skytemperature` | MLX90614 object temp | Requires IR sensor OK |
+| `temperature` | BME280 | Requires env sensor OK |
+| `rainrate` | — | Not implemented (no rain sensor) |
+| `starfwhm` | — | Not implemented |
+| `winddirection` | — | Not implemented (no anemometer) |
+| `windgust` | — | Not implemented |
+| `windspeed` | — | Not implemented |
+| `averageperiod` | — | Always 0; averaging not supported |
+
+When a sensor is temporarily unavailable (hardware error, stale data), the property returns an Alpaca error `0x04FF` with a descriptive message rather than a silently wrong value.
+
+---
+
 ## Alpaca Conform testing
 
 For ASCOM Conform Universal testing:
 
 1. Download [ASCOM Conform Universal](https://github.com/ASCOMInitiative/ConformU/releases)
 2. Configure it to connect to your Alpaca device at `http://127.0.0.1:11111` device `0`
-3. Run the SafetyMonitor conformance check
+3. Run the SafetyMonitor conformance check; repeat for ObservingConditions
 
 Target: `v1.0.0` once all Conform tests pass.
 
