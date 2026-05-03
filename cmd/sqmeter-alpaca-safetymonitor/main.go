@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -41,8 +42,10 @@ type program struct {
 	cfgPath  string
 	uuidPath string
 
-	cancel  context.CancelFunc
-	stopped chan struct{}
+	cancel           context.CancelFunc
+	stopped          chan struct{}
+	svc              service.Service
+	restartRequested atomic.Bool
 }
 
 func (p *program) Start(s service.Service) error {
@@ -123,6 +126,16 @@ func (p *program) run(ctx context.Context, interactive bool) {
 		logger.Error("failed to initialise web handler", "error", err)
 		return
 	}
+
+	webHandler.WithServiceControl(
+		func() {
+			p.restartRequested.Store(true)
+			p.svc.Stop() //nolint:errcheck
+		},
+		func() {
+			p.svc.Stop() //nolint:errcheck
+		},
+	)
 
 	alpacaHandler := alpaca.New(cfgHolder, stateHolder, deviceUUID, version, pol.PollNow)
 
@@ -278,6 +291,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+	prg.svc = s
 
 	if *svcCmd != "" {
 		if err := service.Control(s, *svcCmd); err != nil {
@@ -302,6 +316,14 @@ func main() {
 
 	if err := s.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	// Exit with code 1 when a web-triggered restart was requested so that a
+	// service manager configured for "restart on failure" (Windows Service
+	// recovery options, NSSM AppExit, systemd Restart=on-failure) will restart
+	// the process. A plain stop exits with 0 and the service stays stopped.
+	if prg.restartRequested.Load() {
 		os.Exit(1)
 	}
 }
