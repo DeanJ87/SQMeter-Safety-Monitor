@@ -130,10 +130,10 @@ func (p *program) run(ctx context.Context, interactive bool) {
 	webHandler.WithServiceControl(
 		func() {
 			p.restartRequested.Store(true)
-			p.svc.Stop() //nolint:errcheck
+			_ = p.svc.Stop() /* #nosec G104 -- shutdown call triggered by web endpoint; error cannot be acted on in this goroutine */ //nolint:errcheck
 		},
 		func() {
-			p.svc.Stop() //nolint:errcheck
+			_ = p.svc.Stop() /* #nosec G104 -- shutdown call triggered by web endpoint; error cannot be acted on in this goroutine */ //nolint:errcheck
 		},
 	)
 

@@ -484,10 +484,10 @@ func (h *Handler) ServiceRestart(w http.ResponseWriter, r *http.Request) {
 	enc := json.NewEncoder(w)
 	if h.onRestart == nil {
 		w.WriteHeader(http.StatusNotImplemented)
-		enc.Encode(serviceControlResponse{OK: false, Message: "restart not available"}) //nolint:errcheck
+		_ = enc.Encode(serviceControlResponse{OK: false, Message: "restart not available"}) /* #nosec G104 -- writing JSON to http.ResponseWriter; error indicates broken connection, nothing to act on */ //nolint:errcheck
 		return
 	}
-	enc.Encode(serviceControlResponse{ //nolint:errcheck
+	_ = enc.Encode(serviceControlResponse{ /* #nosec G104 -- same as above */ //nolint:errcheck
 		OK:      true,
 		Message: "restart initiated; service will exit — restart depends on service manager configuration",
 	})
@@ -510,10 +510,10 @@ func (h *Handler) ServiceStop(w http.ResponseWriter, r *http.Request) {
 	enc := json.NewEncoder(w)
 	if h.onStop == nil {
 		w.WriteHeader(http.StatusNotImplemented)
-		enc.Encode(serviceControlResponse{OK: false, Message: "stop not available"}) //nolint:errcheck
+		_ = enc.Encode(serviceControlResponse{OK: false, Message: "stop not available"}) /* #nosec G104 -- writing JSON to http.ResponseWriter; error indicates broken connection, nothing to act on */ //nolint:errcheck
 		return
 	}
-	enc.Encode(serviceControlResponse{ //nolint:errcheck
+	_ = enc.Encode(serviceControlResponse{ /* #nosec G104 -- same as above */ //nolint:errcheck
 		OK:      true,
 		Message: "stop initiated; N.I.N.A./Alpaca safety integration will be unavailable until the service is restarted",
 	})
