@@ -881,16 +881,15 @@ func TestServiceStop_WithoutCallback_Returns501(t *testing.T) {
 }
 
 func TestServiceRestart_GET_DoesNotTriggerAction(t *testing.T) {
-	// GET /api/service/restart falls through to the Dashboard catch-all ("GET /")
-	// and never calls the service callback. This is the intended safety behaviour:
-	// service actions require an explicit POST.
+	// GET /api/service/restart is not a known web UI path and returns 404.
+	// It must never call the service callback — service actions require an explicit POST.
 	h, _, _ := newTestWebHandler(t, true, safeEv())
 	triggered := false
 	h.WithServiceControl(func() { triggered = true }, nil)
 
 	w := serve(t, h, http.MethodGet, "/api/service/restart", "")
-	if w.Code != http.StatusOK {
-		t.Errorf("GET /api/service/restart: want 200 (dashboard fallback), got %d", w.Code)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("GET /api/service/restart: want 404, got %d", w.Code)
 	}
 	if triggered {
 		t.Error("GET /api/service/restart: must not trigger restart callback")
@@ -907,8 +906,8 @@ func TestServiceStop_GET_DoesNotTriggerAction(t *testing.T) {
 	h.WithServiceControl(nil, func() { triggered = true })
 
 	w := serve(t, h, http.MethodGet, "/api/service/stop", "")
-	if w.Code != http.StatusOK {
-		t.Errorf("GET /api/service/stop: want 200 (dashboard fallback), got %d", w.Code)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("GET /api/service/stop: want 404, got %d", w.Code)
 	}
 	if triggered {
 		t.Error("GET /api/service/stop: must not trigger stop callback")
@@ -979,5 +978,69 @@ func TestGetSetup_DisplaysOptionalFloats(t *testing.T) {
 	}
 	if !strings.Contains(body, "2.3") {
 		t.Error("GET /setup: expected DEWPOINT_MARGIN_MIN_C value 2.3 in response")
+	}
+}
+
+// ---------- redesigned dashboard branding and structure ----------------------
+
+func TestDashboard_IncludesASCOMSQMeterBridgeBranding(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	w := serve(t, h, http.MethodGet, "/", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("dashboard: want 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "ASCOM SQMeter Bridge") {
+		t.Error("dashboard: expected 'ASCOM SQMeter Bridge' branding")
+	}
+}
+
+func TestDashboard_IncludesSafetyMonitorSection(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	w := serve(t, h, http.MethodGet, "/", "")
+	body := w.Body.String()
+	if !strings.Contains(body, "Safety Monitor") {
+		t.Error("dashboard: expected 'Safety Monitor' section")
+	}
+	if !strings.Contains(body, "SafetyMonitor/0") {
+		t.Error("dashboard: expected 'SafetyMonitor/0' device listed")
+	}
+}
+
+func TestDashboard_IncludesObservingConditionsSection(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	w := serve(t, h, http.MethodGet, "/", "")
+	body := w.Body.String()
+	if !strings.Contains(body, "Observing Conditions") {
+		t.Error("dashboard: expected 'Observing Conditions' section")
+	}
+	if !strings.Contains(body, "ObservingConditions/0") {
+		t.Error("dashboard: expected 'ObservingConditions/0' device listed")
+	}
+}
+
+func TestDashboard_NetworkExposureWarning_WhenWideOpen(t *testing.T) {
+	h, cfgHolder, _ := newTestWebHandler(t, true, safeEv())
+	cfg := *cfgHolder.Get()
+	cfg.AlpacaHTTPBind = "0.0.0.0"
+	cfgHolder.Update(&cfg) //nolint:errcheck
+
+	w := serve(t, h, http.MethodGet, "/", "")
+	body := w.Body.String()
+	if !strings.Contains(body, "0.0.0.0") {
+		t.Error("dashboard: expected bind address 0.0.0.0 in network warning")
+	}
+	if !strings.Contains(body, "reachable from the network") {
+		t.Error("dashboard: expected network exposure warning text")
+	}
+}
+
+func TestDashboard_NoNetworkWarning_WhenLoopback(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	// default bind is 127.0.0.1
+	w := serve(t, h, http.MethodGet, "/", "")
+	body := w.Body.String()
+	if strings.Contains(body, "reachable from the network") {
+		t.Error("dashboard: must not show network warning for 127.0.0.1 bind")
 	}
 }

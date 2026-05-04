@@ -71,7 +71,11 @@ func New(cfgHolder *config.Holder, holder *state.Holder) (*Handler, error) {
 
 // Register wires web routes onto mux.
 func (h *Handler) Register(mux *http.ServeMux) {
-	mux.HandleFunc("GET /", h.Dashboard)
+	// Use method-agnostic "/" so that alpaca's "/api/" catch-all (which is also
+	// method-agnostic) can take precedence without a Go 1.22 pattern conflict.
+	// Method-qualified "/api/service/*" and "/api/diagnostics" patterns remain
+	// more specific and still resolve correctly.
+	mux.HandleFunc("/", h.Dashboard)
 	mux.HandleFunc("GET /status", h.Dashboard)
 	mux.HandleFunc("GET /health", h.Health)
 	mux.HandleFunc("GET /status.json", h.StatusJSON)
@@ -86,6 +90,24 @@ func (h *Handler) Register(mux *http.ServeMux) {
 }
 
 // ---------- dashboard --------------------------------------------------------
+
+// OCProperty is a row in the Observing Conditions table.
+type OCProperty struct {
+	AlpacaName string
+	Source     string
+	Value      string // formatted value, or "—" if unavailable
+	Unit       string
+	Status     string // "available", "missing", "unsupported"
+}
+
+// SafetyRule is a row in the Safety Monitor rules table.
+type SafetyRule struct {
+	Name      string
+	Threshold string
+	Current   string // formatted current value, or "—"
+	Result    string // "pass", "fail", "warn", "n/a"
+	Enabled   bool
+}
 
 type DashboardData struct {
 	SQMeterURL            string
@@ -105,9 +127,27 @@ type DashboardData struct {
 	DiscoveryError        string
 	DiscoveryHasStats     bool // true when we have a status getter
 	ServiceControlEnabled bool // true when restart/stop callbacks are wired
+
+	// Extended fields for the redesigned dashboard
+	Version               string
+	HTTPBind              string
+	Config                *config.Config
+	RawPayload            string // JSON-serialised last SQMeter payload, or ""
+	DataAge               string // human-readable age of last successful poll
+	OCProps               []OCProperty
+	SafetyRules           []SafetyRule
+	SQMMinSafeStr         string // optional float, pre-formatted for template
+	HumidityMaxSafeStr    string
+	DewpointMarginMinCStr string
 }
 
 func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
+	// "/" is a catch-all; only serve dashboard for known web UI paths.
+	if r.URL.Path != "/" && r.URL.Path != "/status" {
+		http.NotFound(w, r)
+		return
+	}
+
 	s := h.holder.Get()
 	cfg := h.cfgHolder.Get()
 
@@ -118,6 +158,18 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	lastSuccess := "—"
 	if !s.LastSuccessfulPollUTC.IsZero() {
 		lastSuccess = s.LastSuccessfulPollUTC.UTC().Format("2006-01-02 15:04:05 UTC")
+	}
+
+	dataAge := "—"
+	if !s.LastSuccessfulPollUTC.IsZero() {
+		dataAge = time.Since(s.LastSuccessfulPollUTC).Round(time.Second).String()
+	}
+
+	rawPayload := ""
+	if s.RawSensors != nil {
+		if b, err := json.MarshalIndent(s.RawSensors, "", "  "); err == nil {
+			rawPayload = string(b)
+		}
 	}
 
 	data := DashboardData{
@@ -133,6 +185,23 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 		HasData:       !s.LastSuccessfulPollUTC.IsZero(),
 		DewMargin:     s.Values.Temperature - s.Values.Dewpoint,
 		WideOpen:      config.IsWideOpen(cfg.AlpacaHTTPBind),
+
+		Version:     h.version,
+		HTTPBind:    cfg.AlpacaHTTPBind,
+		Config:      cfg,
+		RawPayload:  rawPayload,
+		DataAge:     dataAge,
+		OCProps:     buildOCProperties(s),
+		SafetyRules: buildSafetyRules(cfg, s),
+	}
+	if cfg.SQMMinSafe != nil {
+		data.SQMMinSafeStr = fmt.Sprintf("%.2f", *cfg.SQMMinSafe)
+	}
+	if cfg.HumidityMaxSafe != nil {
+		data.HumidityMaxSafeStr = fmt.Sprintf("%.1f", *cfg.HumidityMaxSafe)
+	}
+	if cfg.DewpointMarginMinC != nil {
+		data.DewpointMarginMinCStr = fmt.Sprintf("%.1f", *cfg.DewpointMarginMinC)
 	}
 	if h.discoveryStatus != nil {
 		ds := h.discoveryStatus()
@@ -146,6 +215,195 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	if err := h.dash.Execute(w, data); err != nil {
 		http.Error(w, "template error: "+err.Error(), http.StatusInternalServerError)
 	}
+}
+
+// buildOCProperties constructs the Observing Conditions property table rows from
+// the current evaluated state. Availability reflects sensor health at the time of
+// the last poll.
+func buildOCProperties(s state.EvaluatedState) []OCProperty {
+	raw := s.RawSensors
+	haIR := raw != nil && raw.IRTemperature.Status == 0
+	haEnv := raw != nil && raw.Environment.Status == 0
+	haLight := raw != nil && raw.LightSensor.Status == 0
+
+	av := func(name, src, val, unit string) OCProperty {
+		return OCProperty{AlpacaName: name, Source: src, Value: val, Unit: unit, Status: "available"}
+	}
+	ms := func(name, src, unit string) OCProperty {
+		return OCProperty{AlpacaName: name, Source: src, Value: "—", Unit: unit, Status: "missing"}
+	}
+	un := func(name string) OCProperty {
+		return OCProperty{AlpacaName: name, Source: "n/a", Value: "—", Unit: "—", Status: "unsupported"}
+	}
+
+	props := make([]OCProperty, 0, 13)
+
+	if haIR {
+		props = append(props, av("CloudCover", "cloudConditions.cloudCoverPercent", fmt.Sprintf("%.1f", s.Values.CloudCoverPercent), "%"))
+	} else {
+		props = append(props, ms("CloudCover", "cloudConditions.cloudCoverPercent", "%"))
+	}
+	if haEnv {
+		props = append(props, av("DewPoint", "environment.dewpoint", fmt.Sprintf("%.1f", s.Values.Dewpoint), "°C"))
+	} else {
+		props = append(props, ms("DewPoint", "environment.dewpoint", "°C"))
+	}
+	if haEnv {
+		props = append(props, av("Humidity", "environment.humidity", fmt.Sprintf("%.1f", s.Values.Humidity), "%"))
+	} else {
+		props = append(props, ms("Humidity", "environment.humidity", "%"))
+	}
+	if haEnv {
+		props = append(props, av("Pressure", "environment.pressure", fmt.Sprintf("%.1f", raw.Environment.Pressure), "hPa"))
+	} else {
+		props = append(props, ms("Pressure", "environment.pressure", "hPa"))
+	}
+	props = append(props, un("RainRate"))
+	if haLight {
+		props = append(props, av("SkyBrightness", "lightSensor.lux", fmt.Sprintf("%.1f", raw.LightSensor.Lux), "lux"))
+	} else {
+		props = append(props, ms("SkyBrightness", "lightSensor.lux", "lux"))
+	}
+	if haLight {
+		props = append(props, av("SkyQuality", "lightSensor.sqm", fmt.Sprintf("%.2f", s.Values.SQM), "mag/arcsec²"))
+	} else {
+		props = append(props, ms("SkyQuality", "lightSensor.sqm", "mag/arcsec²"))
+	}
+	if haIR {
+		props = append(props, av("SkyTemperature", "irTemperature.objectTemp", fmt.Sprintf("%.1f", raw.IRTemperature.ObjectTemp), "°C"))
+	} else {
+		props = append(props, ms("SkyTemperature", "irTemperature.objectTemp", "°C"))
+	}
+	props = append(props, un("StarFWHM"))
+	if haEnv {
+		props = append(props, av("Temperature", "environment.temperature", fmt.Sprintf("%.1f", s.Values.Temperature), "°C"))
+	} else {
+		props = append(props, ms("Temperature", "environment.temperature", "°C"))
+	}
+	props = append(props, un("WindDirection"))
+	props = append(props, un("WindGust"))
+	props = append(props, un("WindSpeed"))
+	return props
+}
+
+// buildSafetyRules constructs the safety rules table from config and current state.
+func buildSafetyRules(cfg *config.Config, s state.EvaluatedState) []SafetyRule {
+	raw := s.RawSensors
+	haIR := raw != nil && raw.IRTemperature.Status == 0
+	haEnv := raw != nil && raw.Environment.Status == 0
+	haLight := raw != nil && raw.LightSensor.Status == 0
+
+	rules := make([]SafetyRule, 0, 8)
+
+	// Cloud cover — unsafe threshold
+	ccCurrent := "—"
+	ccUnsafeResult := "n/a"
+	ccWarnResult := "n/a"
+	if haIR {
+		ccCurrent = fmt.Sprintf("%.1f%%", s.Values.CloudCoverPercent)
+		if s.Values.CloudCoverPercent >= cfg.CloudCoverUnsafePct {
+			ccUnsafeResult = "fail"
+		} else {
+			ccUnsafeResult = "pass"
+		}
+		if s.Values.CloudCoverPercent >= cfg.CloudCoverCautionPct {
+			ccWarnResult = "warn"
+		} else {
+			ccWarnResult = "pass"
+		}
+	}
+	rules = append(rules, SafetyRule{
+		Name:      "Cloud cover below unsafe threshold",
+		Threshold: fmt.Sprintf("< %.0f%%", cfg.CloudCoverUnsafePct),
+		Current:   ccCurrent,
+		Result:    ccUnsafeResult,
+		Enabled:   true,
+	})
+	rules = append(rules, SafetyRule{
+		Name:      "Cloud cover below caution threshold",
+		Threshold: fmt.Sprintf("< %.0f%%", cfg.CloudCoverCautionPct),
+		Current:   ccCurrent,
+		Result:    ccWarnResult,
+		Enabled:   true,
+	})
+
+	// Sensor status rules
+	hasAnyData := raw != nil
+	sensorRule := func(name string, statusOK bool, enabled bool) SafetyRule {
+		current, result := "—", "n/a"
+		if hasAnyData {
+			if statusOK {
+				current, result = "OK", "pass"
+			} else {
+				current, result = "error", "fail"
+			}
+		}
+		return SafetyRule{Name: name, Threshold: "status = 0", Current: current, Result: result, Enabled: enabled}
+	}
+	lightOK := raw != nil && raw.LightSensor.Status == 0
+	envOK := raw != nil && raw.Environment.Status == 0
+	irOK := raw != nil && raw.IRTemperature.Status == 0
+	rules = append(rules, sensorRule("Light sensor status OK", lightOK, cfg.RequireLightStatus))
+	rules = append(rules, sensorRule("Environment sensor status OK", envOK, cfg.RequireEnvStatus))
+	rules = append(rules, sensorRule("IR temperature sensor status OK", irOK, cfg.RequireIRStatus))
+
+	// Optional hard limits
+	if cfg.SQMMinSafe != nil {
+		current, result := "—", "n/a"
+		if haLight {
+			current = fmt.Sprintf("%.2f", s.Values.SQM)
+			if s.Values.SQM < *cfg.SQMMinSafe {
+				result = "fail"
+			} else {
+				result = "pass"
+			}
+		}
+		rules = append(rules, SafetyRule{
+			Name:      "SQM above minimum",
+			Threshold: fmt.Sprintf(">= %.2f mag/arcsec²", *cfg.SQMMinSafe),
+			Current:   current,
+			Result:    result,
+			Enabled:   true,
+		})
+	}
+	if cfg.HumidityMaxSafe != nil {
+		current, result := "—", "n/a"
+		if haEnv {
+			current = fmt.Sprintf("%.1f%%", s.Values.Humidity)
+			if s.Values.Humidity > *cfg.HumidityMaxSafe {
+				result = "fail"
+			} else {
+				result = "pass"
+			}
+		}
+		rules = append(rules, SafetyRule{
+			Name:      "Humidity below maximum",
+			Threshold: fmt.Sprintf("<= %.1f%%", *cfg.HumidityMaxSafe),
+			Current:   current,
+			Result:    result,
+			Enabled:   true,
+		})
+	}
+	if cfg.DewpointMarginMinC != nil {
+		current, result := "—", "n/a"
+		if haEnv {
+			margin := s.Values.Temperature - s.Values.Dewpoint
+			current = fmt.Sprintf("%.1f°C", margin)
+			if margin < *cfg.DewpointMarginMinC {
+				result = "fail"
+			} else {
+				result = "pass"
+			}
+		}
+		rules = append(rules, SafetyRule{
+			Name:      "Dew point margin adequate",
+			Threshold: fmt.Sprintf(">= %.1f°C", *cfg.DewpointMarginMinC),
+			Current:   current,
+			Result:    result,
+			Enabled:   true,
+		})
+	}
+	return rules
 }
 
 // ---------- health / status.json ---------------------------------------------
