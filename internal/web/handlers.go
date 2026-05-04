@@ -71,7 +71,7 @@ func New(cfgHolder *config.Holder, holder *state.Holder) (*Handler, error) {
 
 // Register wires web routes onto mux.
 func (h *Handler) Register(mux *http.ServeMux) {
-	mux.HandleFunc("GET /", h.Dashboard)
+	mux.HandleFunc("/", h.Dashboard)
 	mux.HandleFunc("GET /status", h.Dashboard)
 	mux.HandleFunc("GET /health", h.Health)
 	mux.HandleFunc("GET /status.json", h.StatusJSON)
@@ -108,6 +108,19 @@ type DashboardData struct {
 }
 
 func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
+	// Only serve dashboard at / and /status.
+	if r.URL.Path != "/" && r.URL.Path != "/status" {
+		http.NotFound(w, r)
+		return
+	}
+
+	// Only accept GET and HEAD methods.
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		w.Header().Set("Allow", "GET, HEAD")
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
 	s := h.holder.Get()
 	cfg := h.cfgHolder.Get()
 
