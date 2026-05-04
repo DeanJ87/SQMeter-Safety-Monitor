@@ -5,1469 +5,298 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="refresh" content="30">
 <title>ASCOM SQMeter Bridge</title>
-<style>
-:root {
-  --bg:          #0d0d1a;
-  --sidebar-bg:  #0f0f22;
-  --card-bg:     #14192e;
-  --card2-bg:    #111826;
-  --border:      #1e2d4a;
-  --border-mid:  #263550;
-  --text:        #dde3ed;
-  --muted:       #6b7a94;
-  --accent:      #4a9eff;
-  --accent-dim:  #2a5a99;
-  --safe:        #2ecc71;
-  --safe-bg:     rgba(46,204,113,0.07);
-  --safe-border: rgba(46,204,113,0.3);
-  --unsafe:      #e74c3c;
-  --unsafe-bg:   rgba(231,76,60,0.07);
-  --unsafe-border:rgba(231,76,60,0.3);
-  --warn:        #f6c768;
-  --warn-bg:     rgba(246,199,104,0.08);
-  --warn-border: rgba(246,199,104,0.35);
-  --danger:      #e74c3c;
-  --mono:        'Courier New', 'Consolas', monospace;
-  --sidebar-w:   210px;
-}
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; }
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  font-size: 13px;
-  line-height: 1.5;
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-}
-
-/* ---------- Banners ------------------------------------------------- */
-.banner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 16px;
-  font-size: 0.82rem;
-  font-weight: 500;
-}
-.banner.warn {
-  background: var(--warn-bg);
-  border-bottom: 1px solid var(--warn-border);
-  color: var(--warn);
-}
-.banner.danger {
-  background: var(--unsafe-bg);
-  border-bottom: 1px solid var(--unsafe-border);
-  color: var(--unsafe);
-}
-.banner a { color: inherit; text-decoration: underline; margin-left: 6px; }
-
-/* ---------- Header -------------------------------------------------- */
-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border);
-  background: var(--sidebar-bg);
-  flex-shrink: 0;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.header-title h1 {
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: -0.01em;
-}
-.header-title .sub {
-  font-size: 0.75rem;
-  color: var(--muted);
-  font-family: var(--mono);
-}
-.header-pills {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 0.72rem;
-  font-family: var(--mono);
-  border: 1px solid;
-  white-space: nowrap;
-}
-.pill-ok    { color: var(--safe);   border-color: var(--safe-border);   background: var(--safe-bg);   }
-.pill-err   { color: var(--unsafe); border-color: var(--unsafe-border); background: var(--unsafe-bg); }
-.pill-warn  { color: var(--warn);   border-color: var(--warn-border);   background: var(--warn-bg);   }
-.pill-muted { color: var(--muted);  border-color: var(--border);        background: transparent;      }
-.dot { font-size: 0.6rem; }
-.version-tag { font-size: 0.7rem; color: var(--muted); font-family: var(--mono); }
-
-/* ---------- Layout -------------------------------------------------- */
-.layout {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-}
-
-/* ---------- Sidebar ------------------------------------------------- */
-.sidebar {
-  width: var(--sidebar-w);
-  flex-shrink: 0;
-  background: var(--sidebar-bg);
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  padding: 12px 0 0;
-}
-.sidebar-safety {
-  margin: 0 10px 10px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  border: 1px solid;
-}
-.sidebar-safety.safe   { background: var(--safe-bg);   border-color: var(--safe-border);   }
-.sidebar-safety.unsafe { background: var(--unsafe-bg); border-color: var(--unsafe-border); }
-.safety-state {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 700;
-  font-size: 0.8rem;
-  letter-spacing: 0.05em;
-}
-.safe   .safety-state { color: var(--safe);   }
-.unsafe .safety-state { color: var(--unsafe); }
-.safety-dot { font-size: 0.55rem; }
-.sidebar-meta-line {
-  font-size: 0.68rem;
-  color: var(--muted);
-  margin-top: 3px;
-  font-family: var(--mono);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.override-pill {
-  display: inline-block;
-  margin-top: 4px;
-  padding: 1px 6px;
-  border-radius: 3px;
-  font-size: 0.65rem;
-  font-family: var(--mono);
-  background: var(--warn-bg);
-  border: 1px solid var(--warn-border);
-  color: var(--warn);
-}
-
-.sidebar-sqm {
-  margin: 0 10px 10px;
-  padding: 6px 10px;
-  border-radius: 5px;
-  background: var(--card2-bg);
-  border: 1px solid var(--border);
-}
-.sqm-status {
-  font-size: 0.75rem;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-.sqm-status.ok   { color: var(--safe);   }
-.sqm-status.err  { color: var(--unsafe); }
-
-.sidebar-divider {
-  border: none;
-  border-top: 1px solid var(--border);
-  margin: 2px 10px 8px;
-}
-
-/* Navigation */
-nav { padding: 0 6px; flex: 1; }
-.nav-item {
-  display: block;
-  padding: 7px 10px;
-  border-radius: 5px;
-  color: var(--muted);
-  text-decoration: none;
-  font-size: 0.82rem;
-  margin-bottom: 1px;
-  transition: background 0.1s, color 0.1s;
-  cursor: pointer;
-}
-.nav-item:hover { background: var(--card-bg); color: var(--text); }
-.nav-item.active { background: var(--accent-dim); color: #fff; font-weight: 600; }
-
-.sidebar-footer {
-  padding: 10px 10px 12px;
-  border-top: 1px solid var(--border);
-  margin-top: auto;
-}
-.sidebar-footer a {
-  display: block;
-  font-size: 0.68rem;
-  font-family: var(--mono);
-  color: var(--muted);
-  text-decoration: none;
-  padding: 2px 0;
-}
-.sidebar-footer a:hover { color: var(--accent); }
-
-/* ---------- Content ------------------------------------------------- */
-.content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px;
-}
-.page { display: none; }
-.page.active { display: block; }
-
-/* ---------- Section header ------------------------------------------ */
-.section-title {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 1.2px;
-  color: var(--muted);
-  margin-bottom: 12px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--border);
-  font-weight: 600;
-}
-
-/* ---------- Cards --------------------------------------------------- */
-.card {
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  padding: 14px;
-  margin-bottom: 14px;
-}
-.card-title {
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--muted);
-  margin-bottom: 10px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--border);
-  font-weight: 600;
-}
-
-/* ---------- Tiles --------------------------------------------------- */
-.tiles {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 10px;
-  margin-bottom: 14px;
-}
-.tile {
-  background: var(--card2-bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 10px 12px;
-}
-.tile-label {
-  font-size: 0.65rem;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: var(--muted);
-  margin-bottom: 5px;
-}
-.tile-val {
-  font-size: 0.8rem;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-.tile-val.ok   { color: var(--safe);   }
-.tile-val.err  { color: var(--unsafe); }
-.tile-val.warn { color: var(--warn);   }
-.tile-val.muted { color: var(--muted); }
-.tile-sub { font-size: 0.65rem; color: var(--muted); margin-top: 3px; font-family: var(--mono); }
-
-/* ---------- Key-value rows ------------------------------------------ */
-.kv-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0;
-}
-.kv {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  padding: 3px 0;
-  gap: 8px;
-}
-.kv .k { color: var(--muted); font-size: 0.78rem; flex-shrink: 0; }
-.kv .v { font-family: var(--mono); font-size: 0.78rem; font-weight: 600; text-align: right; word-break: break-all; }
-.kv .v.ok   { color: var(--safe);   }
-.kv .v.err  { color: var(--unsafe); }
-.kv .v.warn { color: var(--warn);   }
-
-/* Reading row (from reference design) */
-.reading-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 5px 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 0.78rem;
-  gap: 12px;
-}
-.reading-row:last-child { border-bottom: none; }
-.reading-row .rk { color: var(--muted); flex: 1; }
-.reading-row .rv { font-family: var(--mono); text-align: right; white-space: nowrap; font-weight: 600; }
-.reading-row .rv.ok   { color: var(--safe);   }
-.reading-row .rv.err  { color: var(--unsafe); }
-.reading-row .rv.warn { color: var(--warn);   }
-.reading-row .rv.dim  { color: var(--muted); font-weight: 500; }
-
-/* Card head (reference design style) */
-.card-head {
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
-  font-family: var(--mono);
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: -14px -14px 0;
-}
-.card-body { padding: 0; }
-.card-body:not(.tight) { padding: 14px; }
-.card-body.tight { padding: 14px 0; }
-
-/* ---------- Tables -------------------------------------------------- */
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.78rem;
-}
-.data-table th {
-  text-align: left;
-  padding: 6px 10px;
-  font-size: 0.66rem;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: var(--muted);
-  border-bottom: 1px solid var(--border);
-  font-weight: 600;
-}
-.data-table td {
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--border);
-  vertical-align: middle;
-}
-.data-table tr:last-child td { border-bottom: none; }
-.data-table tr:hover td { background: rgba(255,255,255,0.02); }
-.data-table td.mono { font-family: var(--mono); }
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 7px;
-  border-radius: 3px;
-  font-size: 0.68rem;
-  font-weight: 600;
-  font-family: var(--mono);
-}
-.status-badge.available  { color: var(--safe);   background: var(--safe-bg);   border: 1px solid var(--safe-border);   }
-.status-badge.missing    { color: var(--muted);  background: transparent;      border: 1px solid var(--border);        }
-.status-badge.unsupported { color: var(--muted); background: transparent;      border: 1px dashed var(--border);       }
-td.muted { color: var(--muted); }
-
-/* ---------- Filters ------------------------------------------------- */
-.filter-bar {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-.filter-btn {
-  padding: 4px 12px;
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--muted);
-  font-size: 0.75rem;
-  cursor: pointer;
-}
-.filter-btn.active { background: var(--accent-dim); border-color: var(--accent); color: #fff; }
-.filter-btn:hover:not(.active) { border-color: var(--border-mid); color: var(--text); }
-
-/* ---------- Rule table result badges -------------------------------- */
-.result-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 7px;
-  border-radius: 3px;
-  font-size: 0.68rem;
-  font-weight: 600;
-  font-family: var(--mono);
-}
-.result-badge.pass     { color: var(--safe);   background: var(--safe-bg);   border: 1px solid var(--safe-border);   }
-.result-badge.fail     { color: var(--unsafe); background: var(--unsafe-bg); border: 1px solid var(--unsafe-border); }
-.result-badge.warn     { color: var(--warn);   background: var(--warn-bg);   border: 1px solid var(--warn-border);   }
-.result-badge.na       { color: var(--muted);  background: transparent;      border: 1px solid var(--border);        }
-td.disabled { color: var(--muted); font-style: italic; }
-
-/* ---------- Config form -------------------------------------------- */
-.form-section {
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  padding: 14px;
-  margin-bottom: 12px;
-}
-.form-section-title {
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--muted);
-  margin-bottom: 12px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--border);
-  font-weight: 600;
-}
-.field { margin-bottom: 10px; }
-.field:last-child { margin-bottom: 0; }
-.field label {
-  display: block;
-  font-size: 0.75rem;
-  color: var(--muted);
-  margin-bottom: 4px;
-}
-.field label .restart-tag {
-  color: var(--warn);
-  font-size: 0.65rem;
-  margin-left: 6px;
-}
-.field label .danger-tag {
-  color: var(--danger);
-  font-size: 0.65rem;
-  margin-left: 6px;
-}
-.field input[type=text],
-.field input[type=number],
-.field select {
-  width: 100%;
-  background: #0a1020;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--text);
-  padding: 5px 9px;
-  font-size: 0.82rem;
-  font-family: var(--mono);
-}
-.field input:focus, .field select:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-.field .hint { font-size: 0.68rem; color: var(--muted); margin-top: 3px; }
-.readonly-val {
-  background: #0a1020;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--muted);
-  padding: 5px 9px;
-  font-size: 0.82rem;
-  font-family: var(--mono);
-  cursor: default;
-}
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.checkbox-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  font-size: 0.82rem;
-}
-.checkbox-row:last-child { margin-bottom: 0; }
-.checkbox-row input[type=checkbox] { accent-color: var(--accent); width: 14px; height: 14px; flex-shrink: 0; }
-.form-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 4px;
-  flex-wrap: wrap;
-}
-.wide-open-field {
-  border-color: var(--warn-border) !important;
-}
-
-/* ---------- Buttons ------------------------------------------------- */
-.btn {
-  padding: 6px 16px;
-  border-radius: 5px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid;
-  transition: background 0.1s;
-}
-.btn-primary { background: var(--accent-dim); border-color: var(--accent); color: #fff; }
-.btn-primary:hover { background: #3570b0; }
-.btn-secondary { background: transparent; border-color: var(--border-mid); color: var(--muted); }
-.btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
-.btn-warn   { background: rgba(246,199,104,0.08); border-color: var(--warn); color: var(--warn); }
-.btn-warn:hover { background: rgba(246,199,104,0.15); }
-.btn-danger { background: var(--unsafe-bg); border-color: var(--unsafe); color: var(--unsafe); }
-.btn-danger:hover { background: rgba(231,76,60,0.15); }
-.btn-copy {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--muted);
-  padding: 2px 7px;
-  border-radius: 3px;
-  font-size: 0.65rem;
-  cursor: pointer;
-  font-family: var(--mono);
-}
-.btn-copy:hover { border-color: var(--accent); color: var(--accent); }
-.btn-test {
-  background: transparent;
-  border: 1px solid var(--accent-dim);
-  color: var(--accent);
-  padding: 4px 12px;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  cursor: pointer;
-  margin-top: 6px;
-}
-.btn-test:hover { background: rgba(74,158,255,0.1); }
-.test-result { font-size: 0.72rem; font-family: var(--mono); margin-top: 4px; min-height: 1.2em; }
-.test-result.ok  { color: var(--safe);   }
-.test-result.err { color: var(--unsafe); }
-
-/* ---------- Config feedback ---------------------------------------- */
-#cfg-feedback { font-size: 0.78rem; margin-left: 2px; }
-#cfg-feedback.ok   { color: var(--safe);   }
-#cfg-feedback.err  { color: var(--unsafe); }
-#cfg-feedback.warn { color: var(--warn);   }
-.restart-notice {
-  background: var(--warn-bg);
-  border: 1px solid var(--warn-border);
-  border-radius: 5px;
-  padding: 7px 12px;
-  font-size: 0.75rem;
-  color: var(--warn);
-  margin-top: 8px;
-  display: none;
-}
-
-/* ---------- Diagnostics sub-tabs ----------------------------------- */
-.tab-bar {
-  display: flex;
-  gap: 0;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 14px;
-}
-.tab-btn {
-  padding: 6px 14px;
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  color: var(--muted);
-  font-size: 0.8rem;
-  cursor: pointer;
-  margin-bottom: -1px;
-}
-.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
-.tab-btn:hover:not(.active) { color: var(--text); }
-.tab-panel { display: none; }
-.tab-panel.active { display: block; }
-
-/* ---------- Code / raw payload ------------------------------------- */
-.code-block {
-  background: #080c18;
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 10px 12px;
-  font-family: var(--mono);
-  font-size: 0.72rem;
-  color: #b0c0d8;
-  overflow-x: auto;
-  white-space: pre;
-  max-height: 420px;
-  overflow-y: auto;
-}
-.not-available {
-  color: var(--muted);
-  font-size: 0.78rem;
-  padding: 12px 0;
-}
-
-/* ---------- Endpoint list ------------------------------------------ */
-.endpoint-list { display: flex; flex-direction: column; gap: 3px; }
-.endpoint-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
-  border-radius: 4px;
-  background: var(--card2-bg);
-}
-.endpoint-row:hover { background: #1a2540; }
-.ep-path {
-  font-family: var(--mono);
-  font-size: 0.78rem;
-  color: var(--accent);
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ep-path a { color: inherit; text-decoration: none; }
-.ep-path a:hover { text-decoration: underline; }
-.ep-desc { font-size: 0.7rem; color: var(--muted); flex-shrink: 0; }
-
-/* ---------- Reasons / warnings lists ------------------------------- */
-.reasons-list, .warnings-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.reasons-list li  { color: var(--unsafe); padding: 2px 0; font-size: 0.8rem; }
-.reasons-list li::before  { content: "✗ "; }
-.warnings-list li { color: var(--warn);   padding: 2px 0; font-size: 0.8rem; }
-.warnings-list li::before { content: "⚠ "; }
-
-/* ---------- Service controls --------------------------------------- */
-.svc-controls { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-#svc-msg { margin-top: 6px; font-size: 0.78rem; display: none; }
-
-/* ---------- Safety state card -------------------------------------- */
-.safety-state-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  border-radius: 7px;
-  border: 1px solid;
-  margin-bottom: 14px;
-}
-.safety-state-card.safe   { background: var(--safe-bg);   border-color: var(--safe-border);   }
-.safety-state-card.unsafe { background: var(--unsafe-bg); border-color: var(--unsafe-border); }
-.safety-label-text {
-  font-size: 1.15rem;
-  font-weight: 800;
-  letter-spacing: 3px;
-}
-.safe   .safety-label-text { color: var(--safe);   }
-.unsafe .safety-label-text { color: var(--unsafe); }
-.safety-card-meta { font-size: 0.75rem; color: var(--muted); line-height: 1.8; }
-</style>
+<link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
+<svg width="0" height="0" aria-hidden="true" focusable="false">
+  <symbol id="i-overview" viewBox="0 0 24 24"><path d="M3 13h8V3H3v10Zm10 8h8V3h-8v18ZM3 21h8v-6H3v6Z" fill="currentColor"/></symbol>
+  <symbol id="i-config" viewBox="0 0 24 24"><path d="M19.4 13.5c.1-.5.1-1 .1-1.5s0-1-.1-1.5l2-1.5-2-3.5-2.4 1a8 8 0 0 0-2.6-1.5L14 2h-4l-.4 3a8 8 0 0 0-2.6 1.5l-2.4-1-2 3.5 2 1.5A8.8 8.8 0 0 0 4.5 12c0 .5 0 1 .1 1.5l-2 1.5 2 3.5 2.4-1a8 8 0 0 0 2.6 1.5l.4 3h4l.4-3a8 8 0 0 0 2.6-1.5l2.4 1 2-3.5-2-1.5ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7Z" fill="currentColor"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5.1 3.4 9.9 8 11 4.6-1.1 8-5.9 8-11V5l-8-3Zm3.7 7.8-4.5 5.1-2.8-2.7 1.1-1.2 1.6 1.5 3.4-3.8 1.2 1.1Z" fill="currentColor"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M12 5c5 0 8.7 4.4 10 7-1.3 2.6-5 7-10 7S3.3 14.6 2 12c1.3-2.6 5-7 10-7Zm0 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0-2.2a1.8 1.8 0 1 1 0-3.6 1.8 1.8 0 0 1 0 3.6Z" fill="currentColor"/></symbol>
+  <symbol id="i-diag" viewBox="0 0 24 24"><path d="M4 4h16v4H4V4Zm0 6h16v4H4v-4Zm0 6h16v4H4v-4Zm2-10v1h2V6H6Zm0 6v1h2v-1H6Zm0 6v1h2v-1H6Z" fill="currentColor"/></symbol>
+  <symbol id="i-bridge" viewBox="0 0 24 24"><path d="M4 19h2v-5a6 6 0 0 1 12 0v5h2v2h-7v-2h3v-5a4 4 0 0 0-8 0v5h3v2H4v-2ZM7 4h10v4H7V4Zm2 2v1h6V6H9Z" fill="currentColor"/></symbol>
+  <symbol id="i-meter" viewBox="0 0 24 24"><path d="M12 4a9 9 0 0 0-9 9c0 2.2.8 4.2 2.1 5.8h13.8A9 9 0 0 0 12 4Zm0 3a6 6 0 0 1 5.8 7.5h-3.1A3 3 0 0 0 12 10a3 3 0 0 0-2.7 4.5H6.2A6 6 0 0 1 12 7Zm1.2 6.8-4.4 3.6 3.2-4.7 1.2 1.1Z" fill="currentColor"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><path d="M8 7h11v14H8V7Zm2 2v10h7V9h-7ZM5 3h11v2H7v11H5V3Z" fill="currentColor"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="m12 2 10 18H2L12 2Zm-1 7v5h2V9h-2Zm0 7v2h2v-2h-2Z" fill="currentColor"/></symbol>
+</svg>
 
-{{if .WideOpen}}
-<div class="banner warn">
-  <span>⚠</span>
-  <span>
-    Service is reachable from the network (ALPACA_HTTP_BIND={{.HTTPBind}}).
-    Do not expose this port to the internet.
-    <a href="#" onclick="showPage('configuration');return false;">Configure</a>
-  </span>
-</div>
-{{end}}
-{{if eq .Override "force_safe"}}
-<div class="banner warn">
-  <span>⚠</span>
-  <span>MANUAL OVERRIDE: force_safe — safety rules are bypassed.
-    <a href="#" onclick="showPage('configuration');return false;">Configure</a></span>
-</div>
-{{end}}
-{{if eq .Override "force_unsafe"}}
-<div class="banner danger">
-  <span>⛔</span>
-  <span>MANUAL OVERRIDE: force_unsafe — always reporting UNSAFE.
-    <a href="#" onclick="showPage('configuration');return false;">Configure</a></span>
-</div>
-{{end}}
-{{if and .DiscoveryHasStats (not .DiscoveryHealthy)}}
-<div class="banner danger">
-  <span>✗</span>
-  <span>Alpaca UDP discovery is not running — N.I.N.A. auto-discovery will not work.{{if .DiscoveryError}} Error: {{.DiscoveryError}}{{end}}</span>
-</div>
-{{end}}
-
-<header>
-  <div class="header-title">
-    <h1>ASCOM SQMeter Bridge</h1>
-    <div class="sub">Alpaca bridge &nbsp;·&nbsp; port {{.HTTPPort}} &nbsp;·&nbsp; up {{.Uptime}}</div>
-  </div>
-  <div class="header-pills">
-    <span class="pill {{if .Connected}}pill-ok{{else}}pill-err{{end}}">
-      <span class="dot">{{if .Connected}}●{{else}}●{{end}}</span>
-      SQMeter {{.SQMeterURL}}
-    </span>
-    {{if .DiscoveryHasStats}}
-    <span class="pill {{if .DiscoveryRunning}}pill-ok{{else}}pill-err{{end}}">
-      <span class="dot">{{if .DiscoveryRunning}}●{{else}}●{{end}}</span>
-      Discovery :{{.DiscoveryPort}}{{if not .DiscoveryRunning}} not running{{end}}
-    </span>
-    {{else}}
-    <span class="pill pill-muted">Discovery :{{.DiscoveryPort}}</span>
-    {{end}}
-    {{if .Version}}<span class="version-tag">{{.Version}}</span>{{end}}
-  </div>
-</header>
-
-<div class="layout">
-
-<aside class="sidebar">
-  <div class="sidebar-safety {{if .State.IsSafe}}safe{{else}}unsafe{{end}}">
-    <div class="safety-state">
-      <span class="safety-dot">{{if .State.IsSafe}}●{{else}}●{{end}}</span>
-      {{if .State.IsSafe}}SAFE{{else}}UNSAFE{{end}}
-    </div>
-    {{if ne .Override "auto"}}
-    <span class="override-pill">override: {{.Override}}</span>
-    {{end}}
-    <div class="sidebar-meta-line">eval: {{.LastPoll}}</div>
-  </div>
-
-  <div class="sidebar-sqm">
-    <div class="sqm-status {{if .Connected}}ok{{else}}err{{end}}">
-      <span>{{if .Connected}}●{{else}}●{{end}}</span>
-      <span>{{if .Connected}}SQMeter connected{{else}}SQMeter disconnected{{end}}</span>
-    </div>
-    <div class="sidebar-meta-line">age: {{.DataAge}}</div>
-  </div>
-
-  <hr class="sidebar-divider">
-
-  <nav>
-    <a href="#" data-page="overview"              class="nav-item active">Overview</a>
-    <a href="#" data-page="configuration"         class="nav-item">Configuration</a>
-    <a href="#" data-page="safety"                class="nav-item">Safety Monitor</a>
-    <a href="#" data-page="observing-conditions"  class="nav-item">Observing Conditions</a>
-    <a href="#" data-page="diagnostics"           class="nav-item">Diagnostics</a>
-  </nav>
-
-  <div class="sidebar-footer">
-    <a href="/management/apiversions">/management/apiversions</a>
-    <a href="/management/v1/configureddevices">/configureddevices</a>
-    <a href="/api/v1/safetymonitor/0/issafe">/safetymonitor/issafe</a>
-    <a href="/status.json">/status.json</a>
-    <a href="/health">/health</a>
-    <a href="/setup">/setup</a>
-  </div>
-</aside>
-
-<main class="content">
-
-<!-- ===================== OVERVIEW ===================== -->
-<div id="pg-overview" class="page active">
-  <div class="section-title">Overview</div>
-
-  <div class="tiles">
-    <div class="tile">
-      <div class="tile-label">Bridge</div>
-      <div class="tile-val ok">● Running</div>
-      <div class="tile-sub">up {{.Uptime}}</div>
-    </div>
-    <div class="tile">
-      <div class="tile-label">SQMeter</div>
-      <div class="tile-val {{if .Connected}}ok{{else}}err{{end}}">
-        {{if .Connected}}● Connected{{else}}● Disconnected{{end}}
-      </div>
-      <div class="tile-sub">age: {{.DataAge}}</div>
-    </div>
-    {{if .DiscoveryHasStats}}
-    <div class="tile">
-      <div class="tile-label">Discovery</div>
-      <div class="tile-val {{if .DiscoveryRunning}}ok{{else}}err{{end}}">
-        {{if .DiscoveryRunning}}● Running{{else}}● not running{{end}}
-      </div>
-      <div class="tile-sub">UDP :{{.DiscoveryPort}}</div>
-    </div>
-    {{else}}
-    <div class="tile">
-      <div class="tile-label">Discovery</div>
-      <div class="tile-val muted">— Unknown</div>
-      <div class="tile-sub">UDP :{{.DiscoveryPort}}</div>
-    </div>
-    {{end}}
-    <div class="tile">
-      <div class="tile-label">Devices</div>
-      <div class="tile-val ok">● 2 devices</div>
-      <div class="tile-sub">SM/0 · OC/0</div>
-    </div>
-    <div class="tile">
-      <div class="tile-label">Safety Monitor</div>
-      <div class="tile-val {{if .State.IsSafe}}ok{{else}}err{{end}}">
-        {{if .State.IsSafe}}● SAFE{{else}}● UNSAFE{{end}}
-      </div>
-      {{if .State.Reasons}}
-      <div class="tile-sub" style="color:var(--unsafe); white-space:normal; line-height:1.3;">
-        {{index .State.Reasons 0}}
-      </div>
-      {{end}}
-    </div>
-  </div>
-
-  <!-- Current Readings -->
-  <div class="card">
-    <div class="card-head">Current Readings</div>
-    {{if .HasData}}
-    <div class="card-body tight">
-      <div class="reading-row"><span class="rk">SQM</span><span class="rv">{{printf "%.2f" .State.Values.SQM}} mag/arcsec²</span></div>
-      <div class="reading-row"><span class="rk">Bortle class</span><span class="rv">{{printf "%.1f" .State.Values.Bortle}}</span></div>
-      <div class="reading-row"><span class="rk">Cloud cover</span><span class="rv {{if ge .State.Values.CloudCoverPercent .Config.CloudCoverUnsafePct}}err{{else if ge .State.Values.CloudCoverPercent .Config.CloudCoverCautionPct}}warn{{else}}ok{{end}}">{{printf "%.1f" .State.Values.CloudCoverPercent}}%</span></div>
-      <div class="reading-row"><span class="rk">Cloud condition</span><span class="rv">{{.State.Values.CloudCondition}}</span></div>
-      <div class="reading-row"><span class="rk">Temperature</span><span class="rv">{{printf "%.1f" .State.Values.Temperature}}°C</span></div>
-      <div class="reading-row"><span class="rk">Humidity</span><span class="rv">{{printf "%.1f" .State.Values.Humidity}}%</span></div>
-      <div class="reading-row"><span class="rk">Dew point</span><span class="rv">{{printf "%.1f" .State.Values.Dewpoint}}°C</span></div>
-      <div class="reading-row"><span class="rk">Dew margin</span><span class="rv {{if lt .DewMargin 3.0}}warn{{else}}ok{{end}}">{{printf "%.1f" .DewMargin}}°C</span></div>
-      <div class="reading-row"><span class="rk">IR delta</span><span class="rv">{{printf "%.1f" .State.Values.TemperatureDelta}}°C</span></div>
-    </div>
-    {{else}}
-    <div class="card-body" style="text-align:center;color:var(--muted);padding:24px 14px;">
-      No sensor data available yet.
-    </div>
-    {{end}}
-  </div>
-
-  <!-- Bridge Status -->
-  <div class="card">
-    <div class="card-head">Bridge Status</div>
-    <div class="card-body tight">
-      <div class="reading-row"><span class="rk">Version</span><span class="rv">{{if .Version}}{{.Version}}{{else}}—{{end}}</span></div>
-      <div class="reading-row"><span class="rk">Bind address</span><span class="rv {{if .WideOpen}}warn{{end}}">{{.HTTPBind}}:{{.HTTPPort}}</span></div>
-      <div class="reading-row"><span class="rk">SQMeter URL</span><span class="rv">{{.SQMeterURL}}</span></div>
-      <div class="reading-row"><span class="rk">Poll interval</span><span class="rv">{{.Config.PollIntervalSeconds}}s</span></div>
-      <div class="reading-row"><span class="rk">Stale after</span><span class="rv">{{.Config.StaleAfterSeconds}}s</span></div>
-      <div class="reading-row"><span class="rk">Fail-closed</span><span class="rv {{if .Config.FailClosed}}ok{{end}}">{{if .Config.FailClosed}}yes{{else}}no{{end}}</span></div>
-      <div class="reading-row"><span class="rk">Override</span><span class="rv {{if ne .Override "auto"}}warn{{else}}dim{{end}}">{{.Override}}</span></div>
-      <div class="reading-row"><span class="rk">Connected</span><span class="rv {{if .Connected}}ok{{else}}err{{end}}">{{if .Connected}}yes{{else}}no{{end}}</span></div>
-    </div>
-  </div>
-
-  <!-- Poll Timing -->
-  <div class="card">
-    <div class="card-head">Poll Timing</div>
-    <div class="card-body tight">
-      <div class="reading-row"><span class="rk">Last poll</span><span class="rv">{{.LastPoll}}</span></div>
-      <div class="reading-row"><span class="rk">Last success</span><span class="rv">{{.LastSuccess}}</span></div>
-      <div class="reading-row"><span class="rk">Data age</span><span class="rv">{{.DataAge}}</span></div>
-      {{if .State.LastError}}
-      <div class="reading-row"><span class="rk">Last error</span><span class="rv err" style="font-size:0.7rem;max-width:100%;word-break:break-all;">{{.State.LastError}}</span></div>
-      {{end}}
-    </div>
-  </div>
-
-  <!-- Exposed Alpaca Devices -->
-  <div class="card">
-    <div class="card-head">Alpaca Devices</div>
-    <div class="card-body tight">
-      <div class="reading-row">
-        <span class="rk">ObservingConditions/0</span>
-        <span class="rv dim" style="font-size:0.7rem;">SQMeter ObservingConditions</span>
-      </div>
-      <div class="reading-row">
-        <span class="rk">SafetyMonitor/0</span>
-        <span class="rv dim" style="font-size:0.7rem;">SQMeter SafetyMonitor</span>
-      </div>
-    </div>
-  </div>
-
-  {{if .ServiceControlEnabled}}
-  <div class="card" id="service-controls">
-    <div class="card-title">Service Controls</div>
-    {{if .WideOpen}}
-    <p style="color:var(--warn);font-size:0.75rem;margin-bottom:6px;">
-      ⚠ Service is reachable from the network — these controls affect all connected clients.
-    </p>
-    {{end}}
-    <p style="color:var(--muted);font-size:0.75rem;margin-bottom:4px;">
-      Restart exits and relies on the service manager to restart automatically.<br>
-      Stop ends the process — N.I.N.A./Alpaca integration is unavailable until the service is restarted.
-    </p>
-    <div class="svc-controls">
-      <button class="btn btn-warn" onclick="svcAction('restart')">Restart service</button>
-      <button class="btn btn-danger" onclick="svcAction('stop')">Stop service</button>
-    </div>
-    <div id="svc-msg"></div>
-  </div>
-  {{end}}
-
-</div><!-- /overview -->
-
-<!-- ===================== CONFIGURATION ===================== -->
-<div id="pg-configuration" class="page">
-  <div class="section-title">Configuration</div>
-
+<div class="bridge-shell" data-initial-page="{{.InitialPage}}">
   {{if .WideOpen}}
-  <div class="banner warn" style="border-radius:6px;margin-bottom:12px;border:1px solid var(--warn-border);">
-    <span>⚠</span>
-    <span>Service is reachable from the network (ALPACA_HTTP_BIND={{.HTTPBind}}). Binding to 0.0.0.0 exposes Alpaca and service controls to the local network.</span>
-  </div>
+  <div class="warn-banner"><svg class="nav-icon"><use href="#i-warn"></use></svg>Service is reachable from the network (ALPACA_HTTP_BIND={{.HTTPBind}}). Do not expose this port to the internet.</div>
+  {{end}}
+  {{if eq .Override "force_safe"}}
+  <div class="warn-banner"><svg class="nav-icon"><use href="#i-warn"></use></svg>MANUAL_OVERRIDE=force_safe. Safety rules are bypassed.</div>
+  {{end}}
+  {{if eq .Override "force_unsafe"}}
+  <div class="danger-banner"><svg class="nav-icon"><use href="#i-warn"></use></svg>MANUAL_OVERRIDE=force_unsafe. Always reporting UNSAFE.</div>
+  {{end}}
+  {{if and .DiscoveryHasStats (not .DiscoveryHealthy)}}
+  <div class="danger-banner"><svg class="nav-icon"><use href="#i-warn"></use></svg>Alpaca UDP discovery is not running.{{if .DiscoveryError}} {{.DiscoveryError}}{{end}}</div>
   {{end}}
 
-  <div class="form-section">
-    <div class="form-section-title">SQMeter Connection</div>
-    <div class="field">
-      <label>SQMETER_BASE_URL</label>
-      <input type="text" id="cfg-SQMETER_BASE_URL" name="SQMETER_BASE_URL" value="{{.Config.SQMeterBaseURL}}" placeholder="http://192.168.1.100">
-      <div class="hint">Base URL of your SQMeter device. Applied immediately after save.</div>
-      <button type="button" class="btn-test" onclick="testSQMeter()">Test connection</button>
-      <div id="cfg-test-result" class="test-result"></div>
-    </div>
+  <header class="app-header">
+    <div class="brand"><span class="brand-accent">ASCOM</span> SQMeter Bridge</div>
+    <div class="header-meta"><span>port {{.HTTPPort}}</span><span>up {{.Uptime}}</span>{{if .Version}}<span>{{.Version}}</span>{{end}}</div>
+    <div class="grow"></div>
+    <div class="header-badge"><span class="dot {{if .Connected}}dot-green{{else}}dot-red{{end}}"></span>SQMeter {{if .Connected}}reachable{{else}}offline{{end}}</div>
+    <div class="header-badge"><span class="dot {{if .DiscoveryRunning}}dot-green{{else if .DiscoveryHasStats}}dot-red{{else}}dot-dim{{end}}"></span>Discovery :{{.DiscoveryPort}}{{if and .DiscoveryHasStats (not .DiscoveryRunning)}} not running{{end}}</div>
+  </header>
+
+  <div class="app-body">
+    <aside class="sidebar">
+      <div class="sidebar-status">
+        <div class="eyebrow">Safety Monitor</div>
+        <div class="safety-badge {{if .State.IsSafe}}safe{{else}}unsafe{{end}}"><span class="dot {{if .State.IsSafe}}dot-green{{else}}dot-red{{end}}"></span>{{if .State.IsSafe}}SAFE{{else}}UNSAFE{{end}}</div>
+        <div class="status-row"><span class="k">last evaluation</span><span class="v">{{.LastPoll}}</span></div>
+        <div class="status-row"><span class="k">override</span><span class="v {{if ne .Override "auto"}}amber{{end}}">{{.Override}}</span></div>
+      </div>
+      <div class="sidebar-status">
+        <div class="eyebrow">SQMeter</div>
+        <div class="status-row"><span class="k">state</span><span class="v {{if .Connected}}green{{else}}red{{end}}">{{if .Connected}}connected{{else}}disconnected{{end}}</span></div>
+        <div class="status-row"><span class="k">age</span><span class="v">{{.DataAge}}</span></div>
+      </div>
+      <nav class="sidebar-nav" aria-label="Dashboard">
+        <a href="#overview" class="nav-item" data-page="overview"><svg class="nav-icon"><use href="#i-overview"></use></svg>Overview</a>
+        <a href="#configuration" class="nav-item" data-page="configuration"><svg class="nav-icon"><use href="#i-config"></use></svg>Configuration</a>
+        <a href="#safety-monitor" class="nav-item" data-page="safety-monitor"><svg class="nav-icon"><use href="#i-shield"></use></svg>Safety Monitor</a>
+        <a href="#observing-conditions" class="nav-item" data-page="observing-conditions"><svg class="nav-icon"><use href="#i-eye"></use></svg>Observing Conditions</a>
+        <a href="#diagnostics" class="nav-item" data-page="diagnostics"><svg class="nav-icon"><use href="#i-diag"></use></svg>Diagnostics</a>
+      </nav>
+      <div class="sidebar-footer">
+        <a href="/management/apiversions">/management/apiversions</a>
+        <a href="/management/v1/configureddevices">/configureddevices</a>
+        <a href="/api/v1/safetymonitor/0/issafe">/safetymonitor/issafe</a>
+        <a href="/status.json">/status.json</a>
+        <a href="/health">/health</a>
+        <a href="/setup">/setup</a>
+      </div>
+    </aside>
+
+    <main class="main">
+      <section id="pg-overview" class="page" data-page="overview">
+        <div class="section-title">Overview</div>
+        <div class="grid-5">
+          <div class="stat-tile"><span class="k">Bridge</span><span class="v green">RUN</span><span class="sub">up {{.Uptime}}</span></div>
+          <div class="stat-tile"><span class="k">SQMeter</span><span class="v {{if .Connected}}green{{else}}red{{end}}">{{if .Connected}}OK{{else}}DOWN{{end}}</span><span class="sub">{{.SQMeterURL}}</span></div>
+          <div class="stat-tile"><span class="k">Safety</span><span class="v {{if .State.IsSafe}}green{{else}}red{{end}}">{{if .State.IsSafe}}SAFE{{else}}UNSAFE{{end}}</span><span class="sub">override {{.Override}}</span></div>
+          <div class="stat-tile"><span class="k">Discovery</span><span class="v {{if .DiscoveryRunning}}green{{else if .DiscoveryHasStats}}red{{else}}dim{{end}}">{{if .DiscoveryRunning}}RUN{{else if .DiscoveryHasStats}}FAIL{{else}}UNK{{end}}</span><span class="sub">UDP :{{.DiscoveryPort}}</span></div>
+          <div class="stat-tile"><span class="k">Devices</span><span class="v green">2</span><span class="sub">SafetyMonitor / ObservingConditions</span></div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-head"><svg class="nav-icon"><use href="#i-meter"></use></svg>Current Readings</div>
+            {{if .HasData}}
+            <div class="card-body tight">
+              <div class="reading-row"><span class="rk">SQM</span><span class="rv">{{printf "%.2f" .State.Values.SQM}} mag/arcsec²</span></div>
+              <div class="reading-row"><span class="rk">Bortle class</span><span class="rv">{{printf "%.1f" .State.Values.Bortle}}</span></div>
+              <div class="reading-row"><span class="rk">Cloud cover</span><span class="rv {{if ge .State.Values.CloudCoverPercent .Config.CloudCoverUnsafePct}}red{{else if ge .State.Values.CloudCoverPercent .Config.CloudCoverCautionPct}}amber{{else}}green{{end}}">{{printf "%.1f" .State.Values.CloudCoverPercent}}%</span></div>
+              <div class="reading-row"><span class="rk">Cloud condition</span><span class="rv">{{.State.Values.CloudCondition}}</span></div>
+              <div class="reading-row"><span class="rk">Temperature</span><span class="rv">{{printf "%.1f" .State.Values.Temperature}}°C</span></div>
+              <div class="reading-row"><span class="rk">Humidity</span><span class="rv">{{printf "%.1f" .State.Values.Humidity}}%</span></div>
+              <div class="reading-row"><span class="rk">Dew point</span><span class="rv">{{printf "%.1f" .State.Values.Dewpoint}}°C</span></div>
+              <div class="reading-row"><span class="rk">Dew margin</span><span class="rv {{if lt .DewMargin 3.0}}amber{{else}}green{{end}}">{{printf "%.1f" .DewMargin}}°C</span></div>
+            </div>
+            {{else}}<div class="empty-state">No sensor data available yet.</div>{{end}}
+          </div>
+          <div class="card">
+            <div class="card-head"><svg class="nav-icon"><use href="#i-bridge"></use></svg>Bridge Status</div>
+            <div class="card-body tight">
+              <div class="reading-row"><span class="rk">Version</span><span class="rv">{{if .Version}}{{.Version}}{{else}}—{{end}}</span></div>
+              <div class="reading-row"><span class="rk">Bind address</span><span class="rv {{if .WideOpen}}amber{{end}}">{{.HTTPBind}}:{{.HTTPPort}}</span></div>
+              <div class="reading-row"><span class="rk">SQMeter URL</span><span class="rv">{{.SQMeterURL}}</span></div>
+              <div class="reading-row"><span class="rk">Fail-closed</span><span class="rv"><span class="pill {{if .Config.FailClosed}}enabled{{else}}disabled{{end}}">{{if .Config.FailClosed}}enabled{{else}}disabled{{end}}</span></span></div>
+              <div class="reading-row"><span class="rk">Connected</span><span class="rv"><span class="pill {{if .Connected}}pass{{else}}fail{{end}}">{{if .Connected}}reachable{{else}}offline{{end}}</span></span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head">Poll Timing</div>
+            <div class="card-body tight">
+              <div class="reading-row"><span class="rk">Interval</span><span class="rv">{{.Config.PollIntervalSeconds}}s</span></div>
+              <div class="reading-row"><span class="rk">Stale after</span><span class="rv">{{.Config.StaleAfterSeconds}}s</span></div>
+              <div class="reading-row"><span class="rk">Last poll</span><span class="rv">{{.LastPoll}}</span></div>
+              <div class="reading-row"><span class="rk">Last success</span><span class="rv">{{.LastSuccess}}</span></div>
+              <div class="reading-row"><span class="rk">Data age</span><span class="rv">{{.DataAge}}</span></div>
+              {{if .State.LastError}}<div class="reading-row"><span class="rk">Last error</span><span class="rv red">{{.State.LastError}}</span></div>{{end}}
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head">Exposed Alpaca Devices</div>
+            <table class="data-table">
+              <thead><tr><th>Device</th><th>Name</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">SafetyMonitor/0</td><td>SQMeter SafetyMonitor</td><td><span class="pill available">configured</span></td></tr>
+                <tr><td class="mono">ObservingConditions/0</td><td>SQMeter ObservingConditions</td><td><span class="pill available">configured</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="pg-safety-monitor" class="page" data-page="safety-monitor">
+        <div class="section-title">Safety Monitor</div>
+        <div class="grid-3">
+          <div class="stat-tile"><span class="k">Summary</span><span class="v {{if .State.IsSafe}}green{{else}}red{{end}}">{{if .State.IsSafe}}SAFE{{else}}UNSAFE{{end}}</span><span class="sub">SQMeter SafetyMonitor</span></div>
+          <div class="stat-tile"><span class="k">Last Evaluation</span><span class="v dim">{{.DataAge}}</span><span class="sub">{{.LastPoll}}</span></div>
+          <div class="stat-tile"><span class="k">Metadata</span><span class="sub">override {{.Override}}</span><span class="sub">fail-closed {{if .Config.FailClosed}}enabled{{else}}disabled{{end}} · connected {{if .Connected}}yes{{else}}no{{end}}</span></div>
+        </div>
+        {{if .State.Reasons}}
+        <div class="card">
+          <div class="card-head amber"><svg class="nav-icon"><use href="#i-warn"></use></svg>Unsafe Reasons</div>
+          <div class="card-body">
+            {{range .State.Reasons}}<div class="reading-row"><span class="rk red">{{.}}</span><span class="rv"><span class="pill fail">fail</span></span></div>{{end}}
+          </div>
+        </div>
+        {{end}}
+        {{if .State.Warnings}}
+        <div class="card">
+          <div class="card-head amber"><svg class="nav-icon"><use href="#i-warn"></use></svg>Warnings</div>
+          <div class="card-body">
+            {{range .State.Warnings}}<div class="reading-row"><span class="rk amber">{{.}}</span><span class="rv"><span class="pill warn">warn</span></span></div>{{end}}
+          </div>
+        </div>
+        {{end}}
+        <div class="card">
+          <div class="card-head">Safety Rules</div>
+          <table class="data-table">
+            <thead><tr><th>Rule</th><th>Threshold</th><th>Current Value</th><th>Result</th><th>Enabled</th></tr></thead>
+            <tbody>
+              {{range .SafetyRules}}
+              <tr>
+                <td>{{.Name}}</td>
+                <td class="mono">{{.Threshold}}</td>
+                <td class="mono">{{.Current}}</td>
+                <td>{{if eq .Result "pass"}}<span class="pill pass">PASS</span>{{else if eq .Result "fail"}}<span class="pill fail">FAIL</span>{{else if eq .Result "warn"}}<span class="pill warn">WARN</span>{{else}}<span class="pill na">N/A</span>{{end}}</td>
+                <td><span class="pill {{if .Enabled}}enabled{{else}}disabled{{end}}">{{if .Enabled}}enabled{{else}}disabled{{end}}</span></td>
+              </tr>
+              {{end}}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="pg-observing-conditions" class="page" data-page="observing-conditions">
+        <div class="section-title">Observing Conditions</div>
+        <div class="filter-bar" role="group" aria-label="Observing Conditions filters">
+          <button class="filter-chip active" data-filter="all">all</button>
+          <button class="filter-chip" data-filter="available">available</button>
+          <button class="filter-chip" data-filter="missing">missing</button>
+        </div>
+        <div class="card">
+          <div class="card-head">Alpaca Property Map</div>
+          <table class="data-table" id="oc-table">
+            <thead><tr><th>Alpaca property</th><th>SQMeter/source field</th><th>Value</th><th>Unit</th><th>Status</th></tr></thead>
+            <tbody>
+              {{range .OCProps}}
+              <tr data-status="{{.Status}}">
+                <td class="mono">{{.AlpacaName}}</td>
+                <td class="mono dim">{{.Source}}</td>
+                <td class="mono {{if ne .Status "available"}}dim{{end}}">{{.Value}}</td>
+                <td class="mono dim">{{.Unit}}</td>
+                <td><span class="pill {{.Status}}">{{.Status}}</span></td>
+              </tr>
+              {{end}}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="pg-configuration" class="page" data-page="configuration">
+        <div class="section-title">Configuration</div>
+        {{if .SavedOK}}<div class="flash-ok">Configuration saved.</div>{{end}}
+        {{if .NeedsRestart}}<div class="flash-warn">Saved changes require restart.{{range .RestartRequiredFields}} <span class="mono">{{.}}</span>{{end}}</div>{{end}}
+        {{if .ErrorMsg}}<div class="flash-err">Error: {{.ErrorMsg}}</div>{{end}}
+        {{if .WideOpen}}<div class="flash-warn">Service is reachable from the network (ALPACA_HTTP_BIND={{.HTTPBind}}). Use 127.0.0.1 for local-only operation.</div>{{end}}
+        <form method="POST" action="/setup">
+          <div class="form-section">
+            <div class="form-section-title">SQMeter Connection</div>
+            <div class="form-body"><div class="field"><label for="sqmeter-url">SQMETER_BASE_URL</label><input class="form-input" type="text" id="sqmeter-url" name="SQMETER_BASE_URL" value="{{.Config.SQMeterBaseURL}}" placeholder="http://192.168.1.100"><div class="hint">Base URL of your SQMeter device. Applied immediately.</div><button type="button" class="btn btn-ghost" id="test-sqmeter">Test connection</button><div id="test-result" class="hint mono"></div></div></div>
+          </div>
+          <div class="form-section" {{if .ServiceControlEnabled}}id="service-controls"{{end}}>
+            <div class="form-section-title">HTTP Bind &amp; Alpaca Discovery <span class="restart-tag">restart required</span></div>
+            <div class="form-body form-grid">
+              <div class="field"><label for="bind">ALPACA_HTTP_BIND <span class="restart-tag">restart required</span></label><input class="form-input {{if .WideOpen}}warning{{end}}" type="text" id="bind" name="ALPACA_HTTP_BIND" value="{{.Config.AlpacaHTTPBind}}"><div class="hint">127.0.0.1 is local-only. 0.0.0.0 is network accessible.</div></div>
+              <div class="field"><label for="http-port">ALPACA_HTTP_PORT <span class="restart-tag">restart required</span></label><input class="form-input" type="number" id="http-port" name="ALPACA_HTTP_PORT" value="{{.Config.AlpacaHTTPPort}}" min="1" max="65535"></div>
+              <div class="field"><label for="discovery-port">ALPACA_DISCOVERY_PORT <span class="restart-tag">restart required</span></label><input class="form-input" type="number" id="discovery-port" name="ALPACA_DISCOVERY_PORT" value="{{.Config.AlpacaDiscoveryPort}}" min="1" max="65535"><div class="hint">UDP port for ASCOM Alpaca discovery.</div></div>
+            </div>
+          </div>
+          <div class="form-section">
+            <div class="form-section-title">Polling</div>
+            <div class="form-body form-grid">
+              <div class="field"><label for="poll">POLL_INTERVAL_SECONDS</label><input class="form-input" type="number" id="poll" name="POLL_INTERVAL_SECONDS" value="{{.Config.PollIntervalSeconds}}" min="1" max="3600"></div>
+              <div class="field"><label for="stale">STALE_AFTER_SECONDS</label><input class="form-input" type="number" id="stale" name="STALE_AFTER_SECONDS" value="{{.Config.StaleAfterSeconds}}" min="1" max="86400"></div>
+              <label class="toggle-row"><input type="checkbox" name="FAIL_CLOSED" value="true" {{if .Config.FailClosed}}checked{{end}}>FAIL_CLOSED reports UNSAFE when data is stale or unreachable.</label>
+              <label class="toggle-row"><input type="checkbox" name="CONNECTED_ON_STARTUP" value="true" {{if .Config.ConnectedOnStartup}}checked{{end}}>CONNECTED_ON_STARTUP starts connected on next launch.</label>
+            </div>
+          </div>
+          <div class="form-section">
+            <div class="form-section-title">Safety Thresholds</div>
+            <div class="form-body form-grid">
+              <div class="field"><label>CLOUD_COVER_UNSAFE_PERCENT</label><input class="form-input" type="number" name="CLOUD_COVER_UNSAFE_PERCENT" value="{{printf "%.1f" .Config.CloudCoverUnsafePct}}" min="0" max="100" step="0.1"></div>
+              <div class="field"><label>CLOUD_COVER_CAUTION_PERCENT</label><input class="form-input" type="number" name="CLOUD_COVER_CAUTION_PERCENT" value="{{printf "%.1f" .Config.CloudCoverCautionPct}}" min="0" max="100" step="0.1"></div>
+              <div class="field"><label>SQM_MIN_SAFE</label><input class="form-input" type="number" name="SQM_MIN_SAFE" value="{{.SQMMinSafeStr}}" step="0.01" placeholder="disabled"><div class="hint">mag/arcsec², blank disables.</div></div>
+              <div class="field"><label>HUMIDITY_MAX_SAFE</label><input class="form-input" type="number" name="HUMIDITY_MAX_SAFE" value="{{.HumidityMaxSafeStr}}" step="0.1" placeholder="disabled"><div class="hint">Percent, blank disables.</div></div>
+              <div class="field"><label>DEWPOINT_MARGIN_MIN_C</label><input class="form-input" type="number" name="DEWPOINT_MARGIN_MIN_C" value="{{.DewpointMarginMinCStr}}" step="0.1" placeholder="disabled"><div class="hint">Temperature minus dew point, blank disables.</div></div>
+            </div>
+          </div>
+          <div class="form-section">
+            <div class="form-section-title">Sensor Requirements</div>
+            <div class="form-body form-grid">
+              <label class="toggle-row"><input type="checkbox" name="REQUIRE_LIGHT_SENSOR_STATUS_OK" value="true" {{if .Config.RequireLightStatus}}checked{{end}}>REQUIRE_LIGHT_SENSOR_STATUS_OK</label>
+              <label class="toggle-row"><input type="checkbox" name="REQUIRE_ENVIRONMENT_STATUS_OK" value="true" {{if .Config.RequireEnvStatus}}checked{{end}}>REQUIRE_ENVIRONMENT_STATUS_OK</label>
+              <label class="toggle-row"><input type="checkbox" name="REQUIRE_IR_TEMPERATURE_STATUS_OK" value="true" {{if .Config.RequireIRStatus}}checked{{end}}>REQUIRE_IR_TEMPERATURE_STATUS_OK</label>
+            </div>
+          </div>
+          <div class="form-section">
+            <div class="form-section-title">Service Controls</div>
+            <div class="form-body form-grid">
+              <div class="field"><label>MANUAL_OVERRIDE</label><select class="form-input" name="MANUAL_OVERRIDE"><option value="auto" {{if eq .Config.ManualOverride "auto"}}selected{{end}}>auto</option><option value="force_safe" {{if eq .Config.ManualOverride "force_safe"}}selected{{end}}>force_safe</option><option value="force_unsafe" {{if eq .Config.ManualOverride "force_unsafe"}}selected{{end}}>force_unsafe</option></select></div>
+              <div class="field"><label>LOG_LEVEL</label><select class="form-input" name="LOG_LEVEL"><option value="debug" {{if eq .Config.LogLevel "debug"}}selected{{end}}>debug</option><option value="info" {{if eq .Config.LogLevel "info"}}selected{{end}}>info</option><option value="warn" {{if eq .Config.LogLevel "warn"}}selected{{end}}>warn</option><option value="error" {{if eq .Config.LogLevel "error"}}selected{{end}}>error</option></select><div class="hint">Logger level applies after restart.</div></div>
+              {{if .ServiceControlEnabled}}<button type="button" class="btn btn-amber" data-service="restart">Restart service</button><button type="button" class="btn btn-danger" data-service="stop">Stop service</button>{{end}}
+            </div>
+          </div>
+          <div class="form-body"><button type="submit" class="btn btn-primary">Save configuration</button> <span class="hint mono">{{if .ConfigPath}}Saving to: {{.ConfigPath}}{{else}}No config file path. Changes are in-memory only.{{end}}</span></div>
+        </form>
+      </section>
+
+      <section id="pg-diagnostics" class="page" data-page="diagnostics">
+        <div class="section-title">Diagnostics</div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-head">Endpoint List</div>
+            <div class="card-body tight">
+              <div class="endpoint-row"><span class="path">/management/apiversions</span><span class="desc">Alpaca versions</span><button class="btn btn-ghost copy-endpoint" data-copy="/management/apiversions"><svg class="nav-icon"><use href="#i-copy"></use></svg>copy</button></div>
+              <div class="endpoint-row"><span class="path">/management/v1/configureddevices</span><span class="desc">configured devices</span><button class="btn btn-ghost copy-endpoint" data-copy="/management/v1/configureddevices"><svg class="nav-icon"><use href="#i-copy"></use></svg>copy</button></div>
+              <div class="endpoint-row"><span class="path">/api/v1/safetymonitor/0/issafe</span><span class="desc">SafetyMonitor</span><button class="btn btn-ghost copy-endpoint" data-copy="/api/v1/safetymonitor/0/issafe"><svg class="nav-icon"><use href="#i-copy"></use></svg>copy</button></div>
+              <div class="endpoint-row"><span class="path">/api/v1/observingconditions/0/cloudcover</span><span class="desc">cloud cover</span><button class="btn btn-ghost copy-endpoint" data-copy="/api/v1/observingconditions/0/cloudcover"><svg class="nav-icon"><use href="#i-copy"></use></svg>copy</button></div>
+              <div class="endpoint-row"><span class="path">/api/v1/observingconditions/0/skyquality</span><span class="desc">sky quality</span><button class="btn btn-ghost copy-endpoint" data-copy="/api/v1/observingconditions/0/skyquality"><svg class="nav-icon"><use href="#i-copy"></use></svg>copy</button></div>
+              <div class="endpoint-row"><span class="path">/status.json</span><span class="desc">bridge state</span><button class="btn btn-ghost copy-endpoint" data-copy="/status.json"><svg class="nav-icon"><use href="#i-copy"></use></svg>copy</button></div>
+              <div class="endpoint-row"><span class="path">/health</span><span class="desc">health probe</span><button class="btn btn-ghost copy-endpoint" data-copy="/health"><svg class="nav-icon"><use href="#i-copy"></use></svg>copy</button></div>
+              <div class="endpoint-row"><span class="path">/setup</span><span class="desc">configuration shell</span><button class="btn btn-ghost copy-endpoint" data-copy="/setup"><svg class="nav-icon"><use href="#i-copy"></use></svg>copy</button></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head">Status / Health</div>
+            <div class="card-body tight">
+              <div class="reading-row"><span class="rk">Bridge</span><span class="rv"><span class="pill pass">running</span></span></div>
+              <div class="reading-row"><span class="rk">SQMeter</span><span class="rv"><span class="pill {{if .Connected}}pass{{else}}fail{{end}}">{{if .Connected}}reachable{{else}}offline{{end}}</span></span></div>
+              <div class="reading-row"><span class="rk">Discovery</span><span class="rv"><span class="pill {{if .DiscoveryRunning}}pass{{else if .DiscoveryHasStats}}fail{{else}}missing{{end}}">{{if .DiscoveryRunning}}running{{else if .DiscoveryHasStats}}not running{{else}}unknown{{end}}</span></span></div>
+              <div class="reading-row"><span class="rk">Safety</span><span class="rv"><span class="pill {{if .State.IsSafe}}pass{{else}}fail{{end}}">{{if .State.IsSafe}}safe{{else}}unsafe{{end}}</span></span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head">Raw SQMeter Payload</div>
+            {{if .RawPayload}}<pre class="code-block">{{.RawPayload}}</pre>{{else}}<div class="empty-state">Raw payload unavailable until a successful SQMeter poll.</div>{{end}}
+          </div>
+          <div class="card">
+            <div class="card-head">Logs</div>
+            <div class="empty-state">Runtime logs are not exposed by this local web service.</div>
+          </div>
+        </div>
+      </section>
+    </main>
   </div>
+</div>
 
-  <div class="form-section">
-    <div class="form-section-title">HTTP Bind &amp; Alpaca Discovery
-      <span style="color:var(--warn);font-size:0.65rem;font-weight:normal;margin-left:6px;">(changes require restart)</span>
-    </div>
-    <div class="grid2">
-      <div class="field">
-        <label>ALPACA_HTTP_BIND <span class="restart-tag">restart required</span> <span class="danger-tag">⚠ use 127.0.0.1 for local-only</span></label>
-        <input type="text" id="cfg-ALPACA_HTTP_BIND" name="ALPACA_HTTP_BIND" value="{{.Config.AlpacaHTTPBind}}" placeholder="127.0.0.1" class="{{if .WideOpen}}wide-open-field{{end}}">
-        <div class="hint">127.0.0.1 = local only · 0.0.0.0 = network accessible (not recommended)</div>
-      </div>
-      <div class="field">
-        <label>ALPACA_HTTP_PORT <span class="restart-tag">restart required</span></label>
-        <input type="number" id="cfg-ALPACA_HTTP_PORT" name="ALPACA_HTTP_PORT" value="{{.Config.AlpacaHTTPPort}}" min="1" max="65535">
-      </div>
-      <div class="field">
-        <label>ALPACA_DISCOVERY_PORT <span class="restart-tag">restart required</span></label>
-        <input type="number" id="cfg-ALPACA_DISCOVERY_PORT" name="ALPACA_DISCOVERY_PORT" value="{{.Config.AlpacaDiscoveryPort}}" min="1" max="65535">
-        <div class="hint">UDP port for ASCOM Alpaca auto-discovery.</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="form-section">
-    <div class="form-section-title">Polling</div>
-    <div class="grid2">
-      <div class="field">
-        <label>POLL_INTERVAL_SECONDS</label>
-        <input type="number" id="cfg-POLL_INTERVAL_SECONDS" name="POLL_INTERVAL_SECONDS" value="{{.Config.PollIntervalSeconds}}" min="1" max="3600">
-        <div class="hint">How often to poll the SQMeter. Applied immediately.</div>
-      </div>
-      <div class="field">
-        <label>STALE_AFTER_SECONDS</label>
-        <input type="number" id="cfg-STALE_AFTER_SECONDS" name="STALE_AFTER_SECONDS" value="{{.Config.StaleAfterSeconds}}" min="1" max="86400">
-        <div class="hint">Report unsafe if data older than this. Applied immediately.</div>
-      </div>
-    </div>
-    <div class="checkbox-row">
-      <input type="checkbox" id="cfg-FAIL_CLOSED" name="FAIL_CLOSED" {{if .Config.FailClosed}}checked{{end}}>
-      <label for="cfg-FAIL_CLOSED">FAIL_CLOSED — report UNSAFE when SQMeter is unreachable or data is stale</label>
-    </div>
-    <div class="checkbox-row">
-      <input type="checkbox" id="cfg-CONNECTED_ON_STARTUP" name="CONNECTED_ON_STARTUP" {{if .Config.ConnectedOnStartup}}checked{{end}}>
-      <label for="cfg-CONNECTED_ON_STARTUP">CONNECTED_ON_STARTUP — start in connected state on next launch</label>
-    </div>
-  </div>
-
-  <div class="form-section">
-    <div class="form-section-title">Safety Thresholds</div>
-    <div class="grid2">
-      <div class="field">
-        <label>CLOUD_COVER_UNSAFE_PERCENT</label>
-        <input type="number" id="cfg-CLOUD_COVER_UNSAFE_PERCENT" name="CLOUD_COVER_UNSAFE_PERCENT" value="{{printf "%.1f" .Config.CloudCoverUnsafePct}}" min="0" max="100" step="0.1">
-        <div class="hint">Cloud cover % that triggers UNSAFE.</div>
-      </div>
-      <div class="field">
-        <label>CLOUD_COVER_CAUTION_PERCENT</label>
-        <input type="number" id="cfg-CLOUD_COVER_CAUTION_PERCENT" name="CLOUD_COVER_CAUTION_PERCENT" value="{{printf "%.1f" .Config.CloudCoverCautionPct}}" min="0" max="100" step="0.1">
-        <div class="hint">Cloud cover % that triggers a caution warning.</div>
-      </div>
-      <div class="field">
-        <label>SQM_MIN_SAFE (mag/arcsec²)</label>
-        <input type="number" id="cfg-SQM_MIN_SAFE" name="SQM_MIN_SAFE" value="{{.SQMMinSafeStr}}" step="0.01" placeholder="disabled">
-        <div class="hint">Unsafe if SQM drops below this. Leave blank to disable.</div>
-      </div>
-      <div class="field">
-        <label>HUMIDITY_MAX_SAFE (%)</label>
-        <input type="number" id="cfg-HUMIDITY_MAX_SAFE" name="HUMIDITY_MAX_SAFE" value="{{.HumidityMaxSafeStr}}" step="0.1" placeholder="disabled">
-        <div class="hint">Unsafe if humidity exceeds this. Leave blank to disable.</div>
-      </div>
-      <div class="field">
-        <label>DEWPOINT_MARGIN_MIN_C (°C)</label>
-        <input type="number" id="cfg-DEWPOINT_MARGIN_MIN_C" name="DEWPOINT_MARGIN_MIN_C" value="{{.DewpointMarginMinCStr}}" step="0.1" placeholder="disabled">
-        <div class="hint">Unsafe if (temperature − dew point) &lt; this. Leave blank to disable.</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="form-section">
-    <div class="form-section-title">Sensor Health Requirements</div>
-    <p style="font-size:0.72rem;color:var(--muted);margin-bottom:10px;">When checked, a non-zero sensor status code causes UNSAFE. Applied immediately.</p>
-    <div class="checkbox-row">
-      <input type="checkbox" id="cfg-REQUIRE_LIGHT_SENSOR_STATUS_OK" name="REQUIRE_LIGHT_SENSOR_STATUS_OK" {{if .Config.RequireLightStatus}}checked{{end}}>
-      <label for="cfg-REQUIRE_LIGHT_SENSOR_STATUS_OK">REQUIRE_LIGHT_SENSOR_STATUS_OK</label>
-    </div>
-    <div class="checkbox-row">
-      <input type="checkbox" id="cfg-REQUIRE_ENVIRONMENT_STATUS_OK" name="REQUIRE_ENVIRONMENT_STATUS_OK" {{if .Config.RequireEnvStatus}}checked{{end}}>
-      <label for="cfg-REQUIRE_ENVIRONMENT_STATUS_OK">REQUIRE_ENVIRONMENT_STATUS_OK</label>
-    </div>
-    <div class="checkbox-row">
-      <input type="checkbox" id="cfg-REQUIRE_IR_TEMPERATURE_STATUS_OK" name="REQUIRE_IR_TEMPERATURE_STATUS_OK" {{if .Config.RequireIRStatus}}checked{{end}}>
-      <label for="cfg-REQUIRE_IR_TEMPERATURE_STATUS_OK">REQUIRE_IR_TEMPERATURE_STATUS_OK</label>
-    </div>
-  </div>
-
-  <div class="form-section">
-    <div class="form-section-title">Override &amp; Logging</div>
-    <div class="grid2">
-      <div class="field">
-        <label>MANUAL_OVERRIDE</label>
-        <select id="cfg-MANUAL_OVERRIDE" name="MANUAL_OVERRIDE">
-          <option value="auto"         {{if eq .Config.ManualOverride "auto"}}selected{{end}}>auto (use safety rules)</option>
-          <option value="force_safe"   {{if eq .Config.ManualOverride "force_safe"}}selected{{end}}>force_safe (BYPASS RULES)</option>
-          <option value="force_unsafe" {{if eq .Config.ManualOverride "force_unsafe"}}selected{{end}}>force_unsafe (always UNSAFE)</option>
-        </select>
-        <div class="hint">Applied immediately. force_safe bypasses all safety rules.</div>
-      </div>
-      <div class="field">
-        <label>LOG_LEVEL</label>
-        <select id="cfg-LOG_LEVEL" name="LOG_LEVEL">
-          <option value="debug" {{if eq .Config.LogLevel "debug"}}selected{{end}}>debug</option>
-          <option value="info"  {{if eq .Config.LogLevel "info"}}selected{{end}}>info</option>
-          <option value="warn"  {{if eq .Config.LogLevel "warn"}}selected{{end}}>warn</option>
-          <option value="error" {{if eq .Config.LogLevel "error"}}selected{{end}}>error</option>
-        </select>
-      </div>
-    </div>
-  </div>
-
-  <div class="form-section">
-    <div class="form-section-title">Device Names <span style="color:var(--muted);font-size:0.65rem;font-weight:normal;margin-left:6px;">(read-only — not configurable at runtime)</span></div>
-    <div class="grid2">
-      <div class="field">
-        <label>SafetyMonitor device name</label>
-        <div class="readonly-val">SQMeter SafetyMonitor</div>
-      </div>
-      <div class="field">
-        <label>ObservingConditions device name</label>
-        <div class="readonly-val">SQMeter ObservingConditions</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="form-actions">
-    <button class="btn btn-primary" onclick="saveConfig()">Save &amp; apply</button>
-    <span id="cfg-feedback"></span>
-  </div>
-  <div id="cfg-restart-notice" class="restart-notice">
-    ⚠ Saved — restart required for: <span id="cfg-restart-fields"></span>
-  </div>
-
-</div><!-- /configuration -->
-
-<!-- ===================== SAFETY MONITOR ===================== -->
-<div id="pg-safety" class="page">
-  <div class="section-title">Safety Monitor</div>
-
-  <div class="safety-state-card {{if .State.IsSafe}}safe{{else}}unsafe{{end}}">
-    <div class="safety-label-text">{{if .State.IsSafe}}SAFE{{else}}UNSAFE{{end}}</div>
-    <div class="safety-card-meta">
-      Connected: {{if .Connected}}yes{{else}}no{{end}}<br>
-      Override: {{.Override}}<br>
-      Fail-closed: {{if .Config.FailClosed}}yes{{else}}no{{end}}<br>
-      Evaluated: {{.LastPoll}}
-    </div>
-  </div>
-
-  {{if .State.Reasons}}
-  <div class="card" style="border-color:var(--unsafe-border);background:var(--unsafe-bg);">
-    <div class="card-head" style="color:var(--unsafe);">⚠ Unsafe Reasons</div>
-    <div class="card-body">
-      <ul class="reasons-list">
-        {{range .State.Reasons}}<li>{{.}}</li>{{end}}
-      </ul>
-    </div>
-  </div>
-  {{end}}
-
-  {{if .State.Warnings}}
-  <div class="card" style="border-color:var(--warn-border);background:var(--warn-bg);">
-    <div class="card-head" style="color:var(--warn);">⚠ Warnings / Cautions</div>
-    <div class="card-body">
-      <ul class="warnings-list">
-        {{range .State.Warnings}}<li>{{.}}</li>{{end}}
-      </ul>
-    </div>
-  </div>
-  {{end}}
-
-  <div class="card">
-    <div class="card-head">Safety Rules</div>
-    {{if .SafetyRules}}
-    <div class="card-body tight">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Rule</th>
-            <th>Threshold</th>
-            <th>Current</th>
-            <th>Result</th>
-            <th>Enabled</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{range .SafetyRules}}
-          <tr>
-            <td>{{.Name}}</td>
-            <td class="mono">{{.Threshold}}</td>
-            <td class="mono">{{.Current}}</td>
-            <td>
-              <span class="result-badge {{.Result}}">
-                {{if eq .Result "pass"}}✓ pass{{else if eq .Result "fail"}}✗ fail{{else if eq .Result "warn"}}⚠ caution{{else}}— n/a{{end}}
-              </span>
-            </td>
-            <td {{if not .Enabled}}class="disabled"{{end}}>
-              <span class="pill {{if .Enabled}}pill-ok{{else}}pill-muted{{end}}">
-                {{if .Enabled}}enabled{{else}}disabled{{end}}
-              </span>
-            </td>
-          </tr>
-          {{end}}
-        </tbody>
-      </table>
-    </div>
-    {{else}}
-    <div class="card-body" style="text-align:center;color:var(--muted);padding:24px 14px;">
-      No safety rules configured.
-    </div>
-    {{end}}
-  </div>
-
-</div><!-- /safety -->
-
-<!-- ===================== OBSERVING CONDITIONS ===================== -->
-<div id="pg-observing-conditions" class="page">
-  <div class="section-title">Observing Conditions</div>
-
-  <div class="filter-bar">
-    <button class="filter-btn active" onclick="filterOC('all', this)">All</button>
-    <button class="filter-btn" onclick="filterOC('available', this)">Available</button>
-    <button class="filter-btn" onclick="filterOC('missing-unsupported', this)">Missing / Unsupported</button>
-  </div>
-
-  <div class="card">
-    <div class="card-head">Available Properties</div>
-    <div class="card-body tight">
-      <table class="data-table" id="oc-table">
-        <thead>
-          <tr>
-            <th>Alpaca Property</th>
-            <th>SQMeter Source</th>
-            <th>Value</th>
-            <th>Unit</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{range .OCProps}}
-          <tr data-oc-status="{{.Status}}">
-            <td>{{.AlpacaName}}</td>
-            <td class="mono muted">{{.Source}}</td>
-            <td class="mono {{if eq .Status "available"}}{{else}}muted{{end}}">{{.Value}}</td>
-            <td class="mono muted">{{.Unit}}</td>
-            <td><span class="status-badge {{.Status}}">{{.Status}}</span></td>
-          </tr>
-          {{end}}
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-</div><!-- /observing-conditions -->
-
-<!-- ===================== DIAGNOSTICS ===================== -->
-<div id="pg-diagnostics" class="page">
-  <div class="section-title">Diagnostics</div>
-
-  <div class="tab-bar">
-    <button class="tab-btn active" onclick="showDiagTab('logs', this)">Logs</button>
-    <button class="tab-btn" onclick="showDiagTab('payload', this)">Raw Payload</button>
-    <button class="tab-btn" onclick="showDiagTab('endpoints', this)">Endpoints</button>
-    <button class="tab-btn" onclick="showDiagTab('discovery', this)">Discovery</button>
-  </div>
-
-  <!-- Logs -->
-  <div id="dtab-logs" class="tab-panel active">
-    <div class="not-available">Log streaming is not yet available in this version. Check the terminal or service log file for output.</div>
-  </div>
-
-  <!-- Raw Payload -->
-  <div id="dtab-payload" class="tab-panel">
-    {{if .RawPayload}}
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-      <span style="font-size:0.72rem;color:var(--muted);">Source: <span style="font-family:var(--mono);">{{.SQMeterURL}}/api/sensors</span></span>
-      <button class="btn-copy" onclick="copyRawPayload()">copy</button>
-    </div>
-    <div class="code-block" id="raw-payload">{{.RawPayload}}</div>
-    {{else}}
-    <div class="not-available">No SQMeter payload available yet. Data will appear after the first successful poll.</div>
-    {{end}}
-  </div>
-
-  <!-- Endpoints -->
-  <div id="dtab-endpoints" class="tab-panel">
-    <div style="margin-bottom:8px;font-size:0.72rem;color:var(--muted);">
-      Base URL: <span id="ep-base" style="font-family:var(--mono);"></span>
-    </div>
-    <div class="endpoint-list">
-      <div class="endpoint-row">
-        <span class="ep-path"><a href="/management/apiversions" target="_blank">/management/apiversions</a></span>
-        <button class="btn-copy" onclick="copyEP('/management/apiversions')">copy</button>
-      </div>
-      <div class="endpoint-row">
-        <span class="ep-path"><a href="/management/v1/configureddevices" target="_blank">/management/v1/configureddevices</a></span>
-        <button class="btn-copy" onclick="copyEP('/management/v1/configureddevices')">copy</button>
-      </div>
-      <div class="endpoint-row">
-        <span class="ep-path"><a href="/api/v1/safetymonitor/0/issafe" target="_blank">/api/v1/safetymonitor/0/issafe</a></span>
-        <button class="btn-copy" onclick="copyEP('/api/v1/safetymonitor/0/issafe')">copy</button>
-      </div>
-      <div class="endpoint-row">
-        <span class="ep-path"><a href="/api/v1/observingconditions/0/cloudcover" target="_blank">/api/v1/observingconditions/0/cloudcover</a></span>
-        <button class="btn-copy" onclick="copyEP('/api/v1/observingconditions/0/cloudcover')">copy</button>
-      </div>
-      <div class="endpoint-row">
-        <span class="ep-path"><a href="/api/v1/observingconditions/0/skyquality" target="_blank">/api/v1/observingconditions/0/skyquality</a></span>
-        <button class="btn-copy" onclick="copyEP('/api/v1/observingconditions/0/skyquality')">copy</button>
-      </div>
-      <div class="endpoint-row">
-        <span class="ep-path"><a href="/status.json" target="_blank">/status.json</a></span>
-        <button class="btn-copy" onclick="copyEP('/status.json')">copy</button>
-      </div>
-      <div class="endpoint-row">
-        <span class="ep-path"><a href="/health" target="_blank">/health</a></span>
-        <button class="btn-copy" onclick="copyEP('/health')">copy</button>
-      </div>
-      <div class="endpoint-row">
-        <span class="ep-path"><a href="/setup" target="_blank">/setup</a></span>
-        <button class="btn-copy" onclick="copyEP('/setup')">copy</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Discovery -->
-  <div id="dtab-discovery" class="tab-panel">
-    {{if .DiscoveryHasStats}}
-    <div class="card" style="margin-bottom:0;">
-      <div class="kv"><span class="k">Running</span><span class="v {{if .DiscoveryRunning}}ok{{else}}err{{end}}">{{if .DiscoveryRunning}}yes{{else}}no — not running{{end}}</span></div>
-      <div class="kv"><span class="k">UDP port</span><span class="v">{{.DiscoveryPort}}</span></div>
-      <div class="kv"><span class="k">Advertised HTTP port</span><span class="v">{{.HTTPPort}}</span></div>
-      {{if .DiscoveryError}}
-      <div class="kv"><span class="k">Last error</span><span class="v err" style="font-size:0.72rem;max-width:320px;word-break:break-all;">{{.DiscoveryError}}</span></div>
-      {{end}}
-    </div>
-    {{else}}
-    <div class="not-available">Discovery status not available.</div>
-    {{end}}
-  </div>
-
-</div><!-- /diagnostics -->
-
-</main>
-</div><!-- /layout -->
-
-<script>
-// Base URL display
-(function() {
-  var el = document.getElementById('ep-base');
-  if (el) el.textContent = location.origin;
-})();
-
-// Navigation
-var pages = ['overview','configuration','safety','observing-conditions','diagnostics'];
-
-function showPage(name) {
-  pages.forEach(function(p) {
-    var el = document.getElementById('pg-' + p);
-    if (el) el.classList.toggle('active', p === name);
-  });
-  document.querySelectorAll('.nav-item').forEach(function(a) {
-    a.classList.toggle('active', a.dataset.page === name);
-  });
-  history.replaceState(null, '', '#' + name);
-}
-
-document.querySelectorAll('.nav-item').forEach(function(a) {
-  a.addEventListener('click', function(e) {
-    e.preventDefault();
-    showPage(this.dataset.page);
-  });
-});
-
-(function() {
-  var hash = location.hash.replace('#','');
-  if (pages.indexOf(hash) !== -1) showPage(hash);
-})();
-
-// Diagnostics tabs
-function showDiagTab(name, btn) {
-  document.querySelectorAll('.tab-panel').forEach(function(p) {
-    p.classList.remove('active');
-  });
-  document.querySelectorAll('.tab-btn').forEach(function(b) {
-    b.classList.remove('active');
-  });
-  var panel = document.getElementById('dtab-' + name);
-  if (panel) panel.classList.add('active');
-  if (btn) btn.classList.add('active');
-}
-
-// OC filter
-function filterOC(filter, btn) {
-  document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
-  if (btn) btn.classList.add('active');
-  document.querySelectorAll('#oc-table tbody tr').forEach(function(row) {
-    var st = row.dataset.ocStatus;
-    if (filter === 'all') {
-      row.style.display = '';
-    } else if (filter === 'available') {
-      row.style.display = st === 'available' ? '' : 'none';
-    } else if (filter === 'missing-unsupported') {
-      row.style.display = (st === 'missing' || st === 'unsupported') ? '' : 'none';
-    }
-  });
-}
-
-// Copy helpers
-function copyText(text) {
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(text).catch(function(){});
-  }
-}
-function copyEP(path) {
-  copyText(location.protocol + '//' + location.host + path);
-}
-function copyRawPayload() {
-  var el = document.getElementById('raw-payload');
-  if (el) copyText(el.textContent);
-}
-
-// Config save
-function saveConfig() {
-  var data = {};
-  var strFields = ['SQMETER_BASE_URL','ALPACA_HTTP_BIND','MANUAL_OVERRIDE','LOG_LEVEL'];
-  var intFields = ['ALPACA_HTTP_PORT','ALPACA_DISCOVERY_PORT','POLL_INTERVAL_SECONDS','STALE_AFTER_SECONDS'];
-  var boolFields = ['FAIL_CLOSED','CONNECTED_ON_STARTUP','REQUIRE_LIGHT_SENSOR_STATUS_OK','REQUIRE_ENVIRONMENT_STATUS_OK','REQUIRE_IR_TEMPERATURE_STATUS_OK'];
-  var optFloatFields = ['CLOUD_COVER_UNSAFE_PERCENT','CLOUD_COVER_CAUTION_PERCENT','SQM_MIN_SAFE','HUMIDITY_MAX_SAFE','DEWPOINT_MARGIN_MIN_C'];
-
-  strFields.forEach(function(k) {
-    var el = document.getElementById('cfg-' + k);
-    if (el) data[k] = el.value;
-  });
-  intFields.forEach(function(k) {
-    var el = document.getElementById('cfg-' + k);
-    if (el && el.value !== '') { var n = parseInt(el.value, 10); if (!isNaN(n)) data[k] = n; }
-  });
-  boolFields.forEach(function(k) {
-    var el = document.getElementById('cfg-' + k);
-    if (el) data[k] = el.checked;
-  });
-  optFloatFields.forEach(function(k) {
-    var el = document.getElementById('cfg-' + k);
-    if (el) {
-      var v = el.value.trim();
-      if (v === '') { data[k] = null; } else { var f = parseFloat(v); if (!isNaN(f)) data[k] = f; }
-    }
-  });
-
-  var fb = document.getElementById('cfg-feedback');
-  var rn = document.getElementById('cfg-restart-notice');
-  fb.textContent = 'Saving…';
-  fb.className = '';
-
-  fetch('/config.json', {
-    method: 'PUT',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(data)
-  })
-  .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, body: d}; }); })
-  .then(function(res) {
-    if (!res.ok) {
-      fb.textContent = '✗ ' + (res.body.error || 'save failed');
-      fb.className = 'err';
-      rn.style.display = 'none';
-      return;
-    }
-    fb.textContent = '✓ Saved';
-    fb.className = 'ok';
-    if (res.body.restart_required && res.body.restart_required_fields && res.body.restart_required_fields.length) {
-      rn.style.display = 'block';
-      document.getElementById('cfg-restart-fields').textContent = res.body.restart_required_fields.join(', ');
-    } else {
-      rn.style.display = 'none';
-    }
-    setTimeout(function() { if (fb.className === 'ok') { fb.textContent = ''; fb.className = ''; } }, 4000);
-  })
-  .catch(function(err) {
-    fb.textContent = '✗ ' + err;
-    fb.className = 'err';
-  });
-}
-
-// SQMeter connection test
-function testSQMeter() {
-  var url = document.getElementById('cfg-SQMETER_BASE_URL');
-  var el = document.getElementById('cfg-test-result');
-  el.className = 'test-result';
-  el.textContent = 'Testing…';
-  fetch('/api/test-sqmeter', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({url: url ? url.value.trim() : ''})
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(d) {
-    el.className = 'test-result ' + (d.ok ? 'ok' : 'err');
-    el.textContent = (d.ok ? '✓ ' : '✗ ') + d.message;
-  })
-  .catch(function(e) {
-    el.className = 'test-result err';
-    el.textContent = '✗ ' + e;
-  });
-}
-
-// Service controls
-function svcAction(action) {
-  var msgs = {
-    restart: 'Restart the service?\n\nThe service will exit and restart if the service manager is configured to do so. It will briefly be unavailable.',
-    stop:    'Stop the service?\n\nWARNING: This will shut down the safety bridge. N.I.N.A. and all Alpaca clients will lose safety integration until the service is manually restarted.\n\nAre you sure?'
-  };
-  if (!window.confirm(msgs[action])) return;
-  var msg = document.getElementById('svc-msg');
-  msg.textContent = 'Sending ' + action + ' request…';
-  msg.style.display = 'block';
-  msg.style.color = 'var(--muted)';
-  fetch('/api/service/' + action, {method: 'POST'})
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      msg.textContent = d.message || (d.ok ? 'Done.' : 'Failed.');
-      msg.style.color = d.ok ? 'var(--safe)' : 'var(--unsafe)';
-    })
-    .catch(function() {
-      msg.textContent = action + ' command sent — service is shutting down.';
-      msg.style.color = 'var(--warn)';
-    });
-}
-</script>
-
+<script src="/static/app.js"></script>
 </body>
 </html>

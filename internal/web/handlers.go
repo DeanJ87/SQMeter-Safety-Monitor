@@ -23,7 +23,6 @@ type Handler struct {
 	cfgHolder       *config.Holder
 	holder          *state.Holder
 	dash            *template.Template
-	setup           *template.Template
 	startT          time.Time
 	discoveryStatus func() discovery.Status
 	version         string
@@ -57,21 +56,17 @@ func New(cfgHolder *config.Holder, holder *state.Holder) (*Handler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parsing dashboard template: %w", err)
 	}
-	setup, err := template.ParseFS(templateFS, "templates/setup.html")
-	if err != nil {
-		return nil, fmt.Errorf("parsing setup template: %w", err)
-	}
 	return &Handler{
 		cfgHolder: cfgHolder,
 		holder:    holder,
 		dash:      dash,
-		setup:     setup,
 		startT:    time.Now(),
 	}, nil
 }
 
 // Register wires web routes onto mux.
 func (h *Handler) Register(mux *http.ServeMux) {
+	mux.Handle("GET /static/", http.FileServerFS(staticFS))
 	mux.HandleFunc("/", h.Dashboard)
 	mux.HandleFunc("GET /status", h.Dashboard)
 	mux.HandleFunc("GET /health", h.Health)
@@ -124,6 +119,12 @@ type DashboardData struct {
 	DiscoveryError        string
 	DiscoveryHasStats     bool // true when we have a status getter
 	ServiceControlEnabled bool // true when restart/stop callbacks are wired
+	InitialPage           string
+	ConfigPath            string
+	SavedOK               bool
+	NeedsRestart          bool
+	RestartRequiredFields []string
+	ErrorMsg              string
 
 	// Extended fields for the redesigned dashboard
 	Version               string
@@ -152,6 +153,10 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.renderDashboard(w, "overview", r.URL.Query())
+}
+
+func (h *Handler) renderDashboard(w http.ResponseWriter, initialPage string, q url.Values) {
 	s := h.holder.Get()
 	cfg := h.cfgHolder.Get()
 
@@ -197,6 +202,13 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 		DataAge:     dataAge,
 		OCProps:     buildOCProperties(s),
 		SafetyRules: buildSafetyRules(cfg, s),
+		InitialPage: initialPage,
+		ConfigPath:  h.cfgHolder.Path(),
+		SavedOK:     q.Get("saved") == "1",
+		NeedsRestart: q.Get("restart") == "1" ||
+			len(q["restart_required_fields"]) > 0,
+		RestartRequiredFields: q["restart_required_fields"],
+		ErrorMsg:              q.Get("error"),
 	}
 	if cfg.SQMMinSafe != nil {
 		data.SQMMinSafeStr = fmt.Sprintf("%.2f", *cfg.SQMMinSafe)
@@ -456,50 +468,8 @@ func (h *Handler) StatusJSON(w http.ResponseWriter, r *http.Request) {
 
 // ---------- setup page -------------------------------------------------------
 
-type SetupData struct {
-	Config                *config.Config
-	ConfigPath            string
-	WideOpen              bool
-	SavedOK               bool
-	NeedsRestart          bool
-	RestartRequiredFields []string
-	ErrorMsg              string
-	// Pre-formatted optional fields (empty string = disabled)
-	SQMMinSafe         string
-	HumidityMaxSafe    string
-	DewpointMarginMinC string
-}
-
-func newSetupData(cfgHolder *config.Holder, q url.Values) SetupData {
-	cfg := cfgHolder.Get()
-	restartFields := q["restart_required_fields"]
-	d := SetupData{
-		Config:                cfg,
-		ConfigPath:            cfgHolder.Path(),
-		WideOpen:              config.IsWideOpen(cfg.AlpacaHTTPBind),
-		SavedOK:               q.Get("saved") == "1",
-		NeedsRestart:          q.Get("restart") == "1" || len(restartFields) > 0,
-		RestartRequiredFields: restartFields,
-		ErrorMsg:              q.Get("error"),
-	}
-	if cfg.SQMMinSafe != nil {
-		d.SQMMinSafe = fmt.Sprintf("%.2f", *cfg.SQMMinSafe)
-	}
-	if cfg.HumidityMaxSafe != nil {
-		d.HumidityMaxSafe = fmt.Sprintf("%.1f", *cfg.HumidityMaxSafe)
-	}
-	if cfg.DewpointMarginMinC != nil {
-		d.DewpointMarginMinC = fmt.Sprintf("%.1f", *cfg.DewpointMarginMinC)
-	}
-	return d
-}
-
 func (h *Handler) GetSetup(w http.ResponseWriter, r *http.Request) {
-	data := newSetupData(h.cfgHolder, r.URL.Query())
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := h.setup.Execute(w, data); err != nil {
-		http.Error(w, "template error: "+err.Error(), http.StatusInternalServerError)
-	}
+	h.renderDashboard(w, "configuration", r.URL.Query())
 }
 
 func (h *Handler) PostSetup(w http.ResponseWriter, r *http.Request) {

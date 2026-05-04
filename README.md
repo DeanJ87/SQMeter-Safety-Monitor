@@ -133,12 +133,17 @@ See [docs/nina-alpaca-discovery.md](docs/nina-alpaca-discovery.md) for a complet
 ```bash
 git clone https://github.com/DeanJ87/SQMeter-ASCOM-Alpaca
 cd SQMeter-ASCOM-Alpaca
+npm ci              # install local Tailwind CLI and bundled IBM Plex font package
+npm run build:assets # regenerate embedded CSS and local font assets
 make build          # ./bin/sqmeter-ascom-alpaca (current platform)
 make build-windows  # ./dist/sqmeter-ascom-alpaca-windows-amd64.exe
 make test           # run all tests with race detector
 make lint           # gofmt check + go vet
 ```
 
+The web dashboard uses Tailwind CSS v4 at build time. Generated CSS is written
+to `internal/web/static/app.css`, and IBM Plex WOFF2 files plus the OFL license
+are bundled locally so the running service never loads fonts or CSS from a CDN.
 Build artifacts go into `./bin/` and `./dist/` — both are git-ignored.
 
 ### Version injection

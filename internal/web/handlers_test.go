@@ -11,6 +11,7 @@ import (
 
 	"sqmeter-ascom-alpaca/internal/config"
 	"sqmeter-ascom-alpaca/internal/discovery"
+	"sqmeter-ascom-alpaca/internal/sqmclient"
 	"sqmeter-ascom-alpaca/internal/state"
 	"sqmeter-ascom-alpaca/internal/web"
 )
@@ -29,12 +30,31 @@ func newTestWebHandler(t *testing.T, connected bool, ev state.EvaluatedState) (*
 
 func safeEv() state.EvaluatedState {
 	now := time.Now().UTC()
+	sensors := &sqmclient.SensorsResponse{
+		LightSensor:     sqmclient.LightSensor{Lux: 0.2, Status: 0},
+		SkyQuality:      sqmclient.SkyQuality{SQM: 21.35, Bortle: 3.0},
+		Environment:     sqmclient.Environment{Temperature: 8.5, Humidity: 62.0, Pressure: 1012.3, Dewpoint: 4.1, Status: 0},
+		IRTemperature:   sqmclient.IRTemperature{ObjectTemp: -10.2, AmbientTemp: 8.4, Status: 0},
+		CloudConditions: sqmclient.CloudConditions{CloudCoverPercent: 12.0, TemperatureDelta: -18.6, CorrectedDelta: -17.0, Description: "Clear"},
+	}
 	return state.EvaluatedState{
 		IsSafe:                true,
 		Reasons:               []string{},
 		Warnings:              []string{},
 		LastPollUTC:           now,
 		LastSuccessfulPollUTC: now,
+		RawSensors:            sensors,
+		Values: state.Values{
+			SQM:               sensors.SkyQuality.SQM,
+			Bortle:            sensors.SkyQuality.Bortle,
+			Temperature:       sensors.Environment.Temperature,
+			Humidity:          sensors.Environment.Humidity,
+			Dewpoint:          sensors.Environment.Dewpoint,
+			CloudCoverPercent: sensors.CloudConditions.CloudCoverPercent,
+			CloudCondition:    sensors.CloudConditions.Description,
+			TemperatureDelta:  sensors.CloudConditions.TemperatureDelta,
+			CorrectedDelta:    sensors.CloudConditions.CorrectedDelta,
+		},
 	}
 }
 
@@ -185,6 +205,128 @@ func TestDashboard_AliasedFromStatus(t *testing.T) {
 	w := serve(t, h, http.MethodGet, "/status", "")
 	if w.Code != http.StatusOK {
 		t.Errorf("/status: want 200, got %d", w.Code)
+	}
+}
+
+func TestDashboard_ReferenceShellStructure(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, unsafeEv())
+	w := serve(t, h, http.MethodGet, "/", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("dashboard: want 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	for _, want := range []string{
+		"ASCOM SQMeter Bridge",
+		`href="/static/app.css"`,
+		`href="#overview"`,
+		`href="#configuration"`,
+		`href="#safety-monitor"`,
+		`href="#observing-conditions"`,
+		`href="#diagnostics"`,
+		"Current Readings",
+		"Bridge Status",
+		"Poll Timing",
+		"Exposed Alpaca Devices",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("dashboard: expected %q in rendered shell", want)
+		}
+	}
+}
+
+func TestDashboard_NoRuntimeExternalCSSOrFonts(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	w := serve(t, h, http.MethodGet, "/", "")
+	body := w.Body.String()
+	for _, forbidden := range []string{
+		"fonts." + "googleapis",
+		"fonts." + "gstatic",
+		"cdn." + "tailwindcss",
+		"<" + "style>",
+		"Twe" + "aks",
+	} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("dashboard HTML contains forbidden runtime asset/debug marker %q", forbidden)
+		}
+	}
+}
+
+func TestDashboard_HashNavigationScriptServed(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	w := serve(t, h, http.MethodGet, "/static/app.js", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /static/app.js: want 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	for _, want := range []string{"hashchange", "safety-monitor", "observing-conditions", "overview"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("app.js: expected hash navigation marker %q", want)
+		}
+	}
+}
+
+func TestDashboard_StaticCSSAndFontsServed(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	css := serve(t, h, http.MethodGet, "/static/app.css", "")
+	if css.Code != http.StatusOK {
+		t.Fatalf("GET /static/app.css: want 200, got %d", css.Code)
+	}
+	cssBody := css.Body.String()
+	for _, want := range []string{"IBM Plex Sans", "IBMPlexSans-Regular.woff2", "bridge-shell", "warn-banner"} {
+		if !strings.Contains(cssBody, want) {
+			t.Fatalf("app.css: expected %q", want)
+		}
+	}
+	for _, forbidden := range []string{"fonts." + "googleapis", "fonts." + "gstatic", "cdn." + "tailwindcss"} {
+		if strings.Contains(cssBody, forbidden) {
+			t.Fatalf("app.css contains forbidden external reference %q", forbidden)
+		}
+	}
+
+	font := serve(t, h, http.MethodGet, "/static/fonts/ibm-plex/IBMPlexSans-Regular.woff2", "")
+	if font.Code != http.StatusOK {
+		t.Fatalf("GET IBM Plex font: want 200, got %d", font.Code)
+	}
+	if font.Body.Len() == 0 {
+		t.Fatal("GET IBM Plex font: expected embedded font bytes")
+	}
+}
+
+func TestDashboard_SafetyMonitorTableStructure(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, unsafeEv())
+	w := serve(t, h, http.MethodGet, "/", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("dashboard: want 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	for _, want := range []string{
+		"Safety Rules",
+		"<th>Rule</th>",
+		"<th>Threshold</th>",
+		"<th>Current Value</th>",
+		"<th>Result</th>",
+		"<th>Enabled</th>",
+		"pill pass",
+		"pill fail",
+		"pill enabled",
+		"Unsafe Reasons",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("safety monitor: expected %q", want)
+		}
+	}
+}
+
+func TestDashboard_WideOpenUsesSoftGoldWarning(t *testing.T) {
+	h, cfgHolder, _ := newTestWebHandler(t, true, safeEv())
+	cfg := cfgHolder.Get()
+	cfg.AlpacaHTTPBind = "0.0.0.0"
+	cfgHolder.Update(cfg)
+
+	w := serve(t, h, http.MethodGet, "/", "")
+	body := w.Body.String()
+	if !strings.Contains(body, "warn-banner") || !strings.Contains(body, "ALPACA_HTTP_BIND=0.0.0.0") {
+		t.Fatalf("dashboard: expected soft warning banner for wide-open bind")
 	}
 }
 
