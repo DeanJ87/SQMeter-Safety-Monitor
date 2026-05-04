@@ -19,7 +19,7 @@ Runs as a single `.exe` (or Windows service) on your observatory PC. No ASCOM CO
 | **SQMeter SafetyMonitor** | The Alpaca `SafetyMonitor` device exposed by this bridge. Used by N.I.N.A. for safety decisions. |
 | **SQMeter ObservingConditions** | The Alpaca `ObservingConditions` device exposed by this bridge. Used by N.I.N.A. for capture metadata (FITS/XISF headers). |
 
-Both devices are served from a single service on the same HTTP port. The binary and Go module are named `sqmeter-alpaca-safetymonitor` (historical) — a rename is tracked as a follow-up task.
+Both devices are served from a single service on the same HTTP port. The binary and Go module are named `sqmeter-ascom-alpaca`.
 
 ---
 
@@ -39,7 +39,7 @@ It answers two questions: **"Is it safe for the observatory to operate right now
 
 ## Quick start (Windows)
 
-1. Download `sqmeter-alpaca-safetymonitor-setup-vX.Y.Z.exe` from [Releases](https://github.com/DeanJ87/SQMeter-ASCOM-Alpaca/releases)
+1. Download `sqmeter-ascom-alpaca-setup-vX.Y.Z.exe` from [Releases](https://github.com/DeanJ87/SQMeter-ASCOM-Alpaca/releases)
 2. Run the installer as Administrator — it installs the binary, registers a Windows service, and starts it
 3. On first run the setup page opens automatically at `http://localhost:11111/setup`
 4. Complete setup to point the bridge at your SQMeter
@@ -133,8 +133,8 @@ See [docs/nina-alpaca-discovery.md](docs/nina-alpaca-discovery.md) for a complet
 ```bash
 git clone https://github.com/DeanJ87/SQMeter-ASCOM-Alpaca
 cd SQMeter-ASCOM-Alpaca
-make build          # ./bin/sqmeter-alpaca-safetymonitor (current platform)
-make build-windows  # ./dist/sqmeter-alpaca-safetymonitor-windows-amd64.exe
+make build          # ./bin/sqmeter-ascom-alpaca (current platform)
+make build-windows  # ./dist/sqmeter-ascom-alpaca-windows-amd64.exe
 make test           # run all tests with race detector
 make lint           # gofmt check + go vet
 ```

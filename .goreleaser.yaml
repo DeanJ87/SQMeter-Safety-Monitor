@@ -1,6 +1,6 @@
 version: 2
 
-project_name: sqmeter-alpaca-safetymonitor
+project_name: sqmeter-ascom-alpaca
 
 before:
   hooks:
@@ -9,8 +9,8 @@ before:
 
 builds:
   - id: windows-amd64
-    main: ./cmd/sqmeter-alpaca-safetymonitor
-    binary: sqmeter-alpaca-safetymonitor
+    main: ./cmd/sqmeter-ascom-alpaca
+    binary: sqmeter-ascom-alpaca
     goos: [windows]
     goarch: [amd64]
     ldflags:
@@ -19,8 +19,8 @@ builds:
       - -X main.date={{.Date}}
 
   - id: linux-amd64
-    main: ./cmd/sqmeter-alpaca-safetymonitor
-    binary: sqmeter-alpaca-safetymonitor
+    main: ./cmd/sqmeter-ascom-alpaca
+    binary: sqmeter-ascom-alpaca
     goos: [linux]
     goarch: [amd64]
     ldflags:
@@ -29,8 +29,8 @@ builds:
       - -X main.date={{.Date}}
 
   - id: linux-arm64
-    main: ./cmd/sqmeter-alpaca-safetymonitor
-    binary: sqmeter-alpaca-safetymonitor
+    main: ./cmd/sqmeter-ascom-alpaca
+    binary: sqmeter-ascom-alpaca
     goos: [linux]
     goarch: [arm64]
     ldflags:

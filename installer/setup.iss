@@ -1,4 +1,4 @@
-; SQMeter Alpaca SafetyMonitor - Inno Setup installer script
+; SQMeter ASCOM Alpaca - Inno Setup installer script
 ; Build with: ISCC.exe /DAppVersion=1.2.3 setup.iss
 ;
 ; Upgrade behaviour (install over an existing version):
@@ -30,12 +30,12 @@
   #define AppVersion "dev"
 #endif
 
-#define AppName      "SQMeter Alpaca SafetyMonitor"
+#define AppName      "SQMeter ASCOM Alpaca"
 #define AppPublisher "DeanJ87"
 #define AppURL       "https://github.com/DeanJ87/SQMeter-ASCOM-Alpaca"
-#define ServiceName  "SQMeterAlpacaSafetyMonitor"
-#define ExeName      "sqmeter-alpaca-safetymonitor.exe"
-#define SetupBase    "sqmeter-alpaca-safetymonitor-setup"
+#define ServiceName  "SQMeterASCOMAlpaca"
+#define ExeName      "sqmeter-ascom-alpaca.exe"
+#define SetupBase    "sqmeter-ascom-alpaca-setup"
 ; AppDataDir must match config.AppDataDirName in internal/config/paths.go.
 #define AppDataDir   "SQMeter SafetyMonitor"
 
@@ -115,7 +115,7 @@ Filename: "{app}\{#ExeName}"; Parameters: "--service uninstall"; \
 Name: "{group}\Configuration"; \
   Filename: "{app}\{#ExeName}"; \
   Parameters: ""; \
-  Comment: "Open SQMeter SafetyMonitor configuration (opens browser)"
+  Comment: "Open SQMeter ASCOM Alpaca configuration (opens browser)"
 Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
 
 [Code]

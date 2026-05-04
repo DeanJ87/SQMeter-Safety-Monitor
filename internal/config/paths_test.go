@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"sqmeter-alpaca-safetymonitor/internal/config"
+	"sqmeter-ascom-alpaca/internal/config"
 )
 
 // TestDefaultConfigPath_NonWindows verifies that on non-Windows platforms the

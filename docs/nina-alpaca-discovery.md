@@ -254,7 +254,7 @@ in UDP discovery.
 The Simulators responded to discovery but SQMeter ASCOM Alpaca did not. This
 usually means one of:
 
-- **The bridge is not running.** Start `sqmeter-alpaca-safetymonitor.exe`.
+- **The bridge is not running.** Start `sqmeter-ascom-alpaca.exe`.
 - **Discovery listener failed to bind.** Check `/status.json` → `discovery.healthy`.
 - **Firewall is blocking UDP 32227 inbound.** See [Firewall](#firewall).
 - **You are connecting from a different machine** and the service is bound to

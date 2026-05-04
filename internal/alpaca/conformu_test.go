@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"sqmeter-alpaca-safetymonitor/internal/alpaca"
+	"sqmeter-ascom-alpaca/internal/alpaca"
 )
 
 // newMux returns a fully registered ServeMux for the given handler.

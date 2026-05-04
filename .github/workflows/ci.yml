@@ -88,15 +88,15 @@ jobs:
         run: |
           GOOS=windows GOARCH=amd64 go build \
             -ldflags "-X main.version=ci -X main.commit=$GITHUB_SHA -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            -o dist/sqmeter-alpaca-safetymonitor-windows-amd64.exe \
-            ./cmd/sqmeter-alpaca-safetymonitor
+            -o dist/sqmeter-ascom-alpaca-windows-amd64.exe \
+            ./cmd/sqmeter-ascom-alpaca
 
       - name: Build Linux amd64
         run: |
           GOOS=linux GOARCH=amd64 go build \
             -ldflags "-X main.version=ci -X main.commit=$GITHUB_SHA -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            -o dist/sqmeter-alpaca-safetymonitor-linux-amd64 \
-            ./cmd/sqmeter-alpaca-safetymonitor
+            -o dist/sqmeter-ascom-alpaca-linux-amd64 \
+            ./cmd/sqmeter-ascom-alpaca
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -129,14 +129,14 @@ jobs:
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           $date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
           $ldflags = "-X main.version=ci -X main.commit=${{ github.sha }} -X main.date=$date"
-          go build -ldflags $ldflags -o dist/sqmeter-alpaca-safetymonitor-windows-amd64.exe ./cmd/sqmeter-alpaca-safetymonitor
+          go build -ldflags $ldflags -o dist/sqmeter-ascom-alpaca-windows-amd64.exe ./cmd/sqmeter-ascom-alpaca
 
       - name: Verify Windows executable
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $PSNativeCommandUseErrorActionPreference = $true
-          $exe = ".\dist\sqmeter-alpaca-safetymonitor-windows-amd64.exe"
+          $exe = ".\dist\sqmeter-ascom-alpaca-windows-amd64.exe"
 
           $versionOutput = (& $exe --version) -join "`n"
           $versionOutput
@@ -167,8 +167,8 @@ jobs:
         run: |
           go build \
             -ldflags "-X main.version=ci -X main.commit=$GITHUB_SHA -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            -o bin/sqmeter-alpaca-safetymonitor \
-            ./cmd/sqmeter-alpaca-safetymonitor
+            -o bin/sqmeter-ascom-alpaca \
+            ./cmd/sqmeter-ascom-alpaca
 
       - name: Download ConformU
         run: |

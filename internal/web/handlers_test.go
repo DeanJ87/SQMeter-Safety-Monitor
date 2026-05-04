@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"sqmeter-alpaca-safetymonitor/internal/config"
-	"sqmeter-alpaca-safetymonitor/internal/discovery"
-	"sqmeter-alpaca-safetymonitor/internal/state"
-	"sqmeter-alpaca-safetymonitor/internal/web"
+	"sqmeter-ascom-alpaca/internal/config"
+	"sqmeter-ascom-alpaca/internal/discovery"
+	"sqmeter-ascom-alpaca/internal/state"
+	"sqmeter-ascom-alpaca/internal/web"
 )
 
 func newTestWebHandler(t *testing.T, connected bool, ev state.EvaluatedState) (*web.Handler, *config.Holder, *state.Holder) {

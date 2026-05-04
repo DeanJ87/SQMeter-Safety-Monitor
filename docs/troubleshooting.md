@@ -5,16 +5,16 @@
 ## Service is not starting
 
 1. Check the Windows Event Log (Event Viewer → Windows Logs → Application) for
-   errors from `SQMeterAlpacaSafetyMonitor`.
+   errors from `SQMeterASCOMAlpaca`.
 2. Run from a Command Prompt to see console output directly:
    ```cmd
-   sqmeter-alpaca-safetymonitor.exe --check-config
+   sqmeter-ascom-alpaca.exe --check-config
    ```
    This validates `config.json` and exits with a summary. Fix any reported
    errors before trying to start the service.
 3. If `config.json` is missing, run:
    ```cmd
-   sqmeter-alpaca-safetymonitor.exe --write-default-config
+   sqmeter-ascom-alpaca.exe --write-default-config
    ```
    This writes a default config to the platform-appropriate path and exits.
 4. If `config_version` in the config file is newer than the binary supports,
@@ -28,7 +28,7 @@
 While the service is running, open a Command Prompt and run:
 
 ```cmd
-sqmeter-alpaca-safetymonitor.exe --diagnostics
+sqmeter-ascom-alpaca.exe --diagnostics
 ```
 
 This queries `GET /api/diagnostics` on the running service and prints a report
@@ -54,7 +54,7 @@ If these fail:
 
 1. Confirm the service is running:
    ```cmd
-   sqmeter-alpaca-safetymonitor.exe --service status
+   sqmeter-ascom-alpaca.exe --service status
    ```
 2. Confirm the port is bound:
    ```powershell

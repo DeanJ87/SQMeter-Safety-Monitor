@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"sqmeter-alpaca-safetymonitor/internal/state"
+	"sqmeter-ascom-alpaca/internal/state"
 )
 
 func TestNewHolder_ConnectedOnStartup(t *testing.T) {

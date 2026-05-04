@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"sqmeter-alpaca-safetymonitor/internal/discovery"
+	"sqmeter-ascom-alpaca/internal/discovery"
 )
 
 func TestDiscovery_RespondsWithAlpacaPort(t *testing.T) {
