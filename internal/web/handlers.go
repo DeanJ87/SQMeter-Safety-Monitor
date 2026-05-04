@@ -11,10 +11,10 @@ import (
 	"strconv"
 	"time"
 
-	"sqmeter-alpaca-safetymonitor/internal/alpaca"
-	"sqmeter-alpaca-safetymonitor/internal/config"
-	"sqmeter-alpaca-safetymonitor/internal/discovery"
-	"sqmeter-alpaca-safetymonitor/internal/state"
+	"sqmeter-ascom-alpaca/internal/alpaca"
+	"sqmeter-ascom-alpaca/internal/config"
+	"sqmeter-ascom-alpaca/internal/discovery"
+	"sqmeter-ascom-alpaca/internal/state"
 )
 
 // Handler serves the local web dashboard, setup page, and utility endpoints.
@@ -26,6 +26,17 @@ type Handler struct {
 	startT          time.Time
 	discoveryStatus func() discovery.Status
 	version         string
+	onRestart       func()
+	onStop          func()
+}
+
+// WithServiceControl registers callbacks for web-triggered restart and stop.
+// restart is called to request a graceful exit that the service manager should
+// restart (exit code 1); stop is called for a clean shutdown (exit code 0).
+// Either or both may be nil; missing callbacks return HTTP 501.
+func (h *Handler) WithServiceControl(restart, stop func()) {
+	h.onRestart = restart
+	h.onStop = stop
 }
 
 // WithDiscovery registers a discovery status getter so the handler can expose
@@ -70,27 +81,30 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /config.json", h.PutConfigJSON)
 	mux.HandleFunc("POST /api/test-sqmeter", h.TestSQMeter)
 	mux.HandleFunc("GET /api/diagnostics", h.Diagnostics)
+	mux.HandleFunc("POST /api/service/restart", h.ServiceRestart)
+	mux.HandleFunc("POST /api/service/stop", h.ServiceStop)
 }
 
 // ---------- dashboard --------------------------------------------------------
 
 type DashboardData struct {
-	SQMeterURL        string
-	HTTPPort          int
-	DiscoveryPort     int
-	Uptime            string
-	State             state.EvaluatedState
-	Connected         bool
-	Override          string
-	LastPoll          string
-	LastSuccess       string
-	HasData           bool
-	DewMargin         float64
-	WideOpen          bool
-	DiscoveryRunning  bool
-	DiscoveryHealthy  bool
-	DiscoveryError    string
-	DiscoveryHasStats bool // true when we have a status getter
+	SQMeterURL            string
+	HTTPPort              int
+	DiscoveryPort         int
+	Uptime                string
+	State                 state.EvaluatedState
+	Connected             bool
+	Override              string
+	LastPoll              string
+	LastSuccess           string
+	HasData               bool
+	DewMargin             float64
+	WideOpen              bool
+	DiscoveryRunning      bool
+	DiscoveryHealthy      bool
+	DiscoveryError        string
+	DiscoveryHasStats     bool // true when we have a status getter
+	ServiceControlEnabled bool // true when restart/stop callbacks are wired
 }
 
 func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
@@ -127,6 +141,7 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 		data.DiscoveryHealthy = ds.Healthy
 		data.DiscoveryError = ds.LastError
 	}
+	data.ServiceControlEnabled = h.onRestart != nil || h.onStop != nil
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := h.dash.Execute(w, data); err != nil {
 		http.Error(w, "template error: "+err.Error(), http.StatusInternalServerError)
@@ -449,6 +464,66 @@ func (h *Handler) Diagnostics(w http.ResponseWriter, r *http.Request) {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	_ = enc.Encode(report)
+}
+
+// ---------- service controls -------------------------------------------------
+
+type serviceControlResponse struct {
+	OK      bool   `json:"ok"`
+	Message string `json:"message"`
+}
+
+// ServiceRestart handles POST /api/service/restart.
+// It responds with JSON and then, after flushing the response, calls the
+// registered restart callback. The process exits with code 1 so that a
+// service manager configured for "restart on failure" (e.g. Windows Service
+// recovery options or NSSM) will restart it automatically. If no service
+// manager restart policy is configured the process simply exits.
+func (h *Handler) ServiceRestart(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	enc := json.NewEncoder(w)
+	if h.onRestart == nil {
+		w.WriteHeader(http.StatusNotImplemented)
+		_ = enc.Encode(serviceControlResponse{OK: false, Message: "restart not available"}) /* #nosec G104 -- writing JSON to http.ResponseWriter; error indicates broken connection, nothing to act on */ //nolint:errcheck
+		return
+	}
+	_ = enc.Encode(serviceControlResponse{ /* #nosec G104 -- same as above */ //nolint:errcheck
+		OK:      true,
+		Message: "restart initiated; service will exit — restart depends on service manager configuration",
+	})
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush()
+	}
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		h.onRestart()
+	}()
+}
+
+// ServiceStop handles POST /api/service/stop.
+// It responds with JSON and then calls the registered stop callback after
+// flushing the response. The process exits cleanly (code 0); the service will
+// remain stopped until manually restarted. N.I.N.A. and other Alpaca clients
+// will lose safety integration until the service is running again.
+func (h *Handler) ServiceStop(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	enc := json.NewEncoder(w)
+	if h.onStop == nil {
+		w.WriteHeader(http.StatusNotImplemented)
+		_ = enc.Encode(serviceControlResponse{OK: false, Message: "stop not available"}) /* #nosec G104 -- writing JSON to http.ResponseWriter; error indicates broken connection, nothing to act on */ //nolint:errcheck
+		return
+	}
+	_ = enc.Encode(serviceControlResponse{ /* #nosec G104 -- same as above */ //nolint:errcheck
+		OK:      true,
+		Message: "stop initiated; N.I.N.A./Alpaca safety integration will be unavailable until the service is restarted",
+	})
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush()
+	}
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		h.onStop()
+	}()
 }
 
 // ---------- SQMeter connection test -----------------------------------------

@@ -55,7 +55,7 @@ func (h *Holder) Path() string { return h.path }
 
 // SaveDefault writes the default config to path, creating parent directories
 // as needed.  This is the correct way to initialise a config at a new location
-// (e.g. %ProgramData%\SQMeter SafetyMonitor\config.json on first install).
+// (e.g. %ProgramData%\SQMeter ASCOM Alpaca\config.json on first install).
 func SaveDefault(path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return fmt.Errorf("creating config directory: %w", err)

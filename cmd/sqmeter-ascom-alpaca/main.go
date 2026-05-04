@@ -16,16 +16,17 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/kardianos/service"
-	"sqmeter-alpaca-safetymonitor/internal/alpaca"
-	"sqmeter-alpaca-safetymonitor/internal/config"
-	"sqmeter-alpaca-safetymonitor/internal/discovery"
-	"sqmeter-alpaca-safetymonitor/internal/poller"
-	"sqmeter-alpaca-safetymonitor/internal/state"
-	"sqmeter-alpaca-safetymonitor/internal/web"
+	"sqmeter-ascom-alpaca/internal/alpaca"
+	"sqmeter-ascom-alpaca/internal/config"
+	"sqmeter-ascom-alpaca/internal/discovery"
+	"sqmeter-ascom-alpaca/internal/poller"
+	"sqmeter-ascom-alpaca/internal/state"
+	"sqmeter-ascom-alpaca/internal/web"
 )
 
 // Injected at build time via -ldflags.
@@ -38,11 +39,14 @@ var (
 // ---------- service wrapper --------------------------------------------------
 
 type program struct {
-	cfgPath  string
-	uuidPath string
+	cfgPath    string
+	uuidPath   string
+	ocUUIDPath string
 
-	cancel  context.CancelFunc
-	stopped chan struct{}
+	cancel           context.CancelFunc
+	stopped          chan struct{}
+	svc              service.Service
+	restartRequested atomic.Bool
 }
 
 func (p *program) Start(s service.Service) error {
@@ -81,7 +85,7 @@ func (p *program) run(ctx context.Context, interactive bool) {
 	}
 
 	logger := newLogger(cfg.LogLevel)
-	logger.Info("starting sqmeter-alpaca-safetymonitor",
+	logger.Info("starting sqmeter-ascom-alpaca",
 		"version", version,
 		"sqmeter_url", cfg.SQMeterBaseURL,
 		"http_port", cfg.AlpacaHTTPPort,
@@ -124,7 +128,25 @@ func (p *program) run(ctx context.Context, interactive bool) {
 		return
 	}
 
+	webHandler.WithServiceControl(
+		func() {
+			p.restartRequested.Store(true)
+			_ = p.svc.Stop() /* #nosec G104 -- shutdown call triggered by web endpoint; error cannot be acted on in this goroutine */ //nolint:errcheck
+		},
+		func() {
+			_ = p.svc.Stop() /* #nosec G104 -- shutdown call triggered by web endpoint; error cannot be acted on in this goroutine */ //nolint:errcheck
+		},
+	)
+
 	alpacaHandler := alpaca.New(cfgHolder, stateHolder, deviceUUID, version, pol.PollNow)
+
+	ocDeviceUUID, err := loadOrCreateUUID(p.ocUUIDPath)
+	if err != nil {
+		logger.Warn("could not persist OC device UUID, using ephemeral UUID", "error", err)
+	}
+	logger.Info("OC device UUID", "uuid", ocDeviceUUID)
+	ocHandler := alpaca.NewOC(cfgHolder, stateHolder, ocDeviceUUID, version, pol.PollNow)
+	alpacaHandler.AddConfiguredDevice(ocHandler.ConfiguredDevice())
 
 	disc := discovery.New(cfg.AlpacaDiscoveryPort, cfg.AlpacaHTTPPort, logger)
 	webHandler.WithDiscovery(disc.GetStatus)
@@ -132,6 +154,7 @@ func (p *program) run(ctx context.Context, interactive bool) {
 
 	mux := http.NewServeMux()
 	alpacaHandler.Register(mux)
+	ocHandler.Register(mux)
 	webHandler.Register(mux)
 
 	srv := &http.Server{
@@ -196,7 +219,7 @@ func (p *program) run(ctx context.Context, interactive bool) {
 
 func main() {
 	// Default config and data paths use the platform-appropriate location.
-	// On Windows this is %ProgramData%\SQMeter SafetyMonitor\; on other
+	// On Windows this is %ProgramData%\SQMeter ASCOM Alpaca\; on other
 	// platforms the directory containing the executable is used.
 	exe, _ := os.Executable()
 	exeDir := filepath.Dir(exe)
@@ -204,6 +227,7 @@ func main() {
 	var (
 		cfgPath            = flag.String("config", config.DefaultConfigPath(exeDir), "path to JSON config file")
 		uuidPath           = flag.String("uuid-file", config.DefaultUUIDPath(exeDir), "path to persist stable device UUID")
+		ocUUIDPath         = flag.String("oc-uuid-file", config.DefaultOCUUIDPath(exeDir), "path to persist stable ObservingConditions device UUID")
 		svcCmd             = flag.String("service", "", "manage the system service: install|uninstall|start|stop|status")
 		showVersion        = flag.Bool("version", false, "print version and exit")
 		writeDefaultConfig = flag.Bool("write-default-config", false, "write default config to --config path and exit")
@@ -213,7 +237,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("sqmeter-alpaca-safetymonitor %s (commit %s, built %s)\n", version, commit, date)
+		fmt.Printf("sqmeter-ascom-alpaca %s (commit %s, built %s)\n", version, commit, date)
 		fmt.Printf("Latest releases: %s\n", config.ReleasesURL)
 		return
 	}
@@ -263,13 +287,14 @@ func main() {
 	}
 
 	prg := &program{
-		cfgPath:  *cfgPath,
-		uuidPath: *uuidPath,
+		cfgPath:    *cfgPath,
+		uuidPath:   *uuidPath,
+		ocUUIDPath: *ocUUIDPath,
 	}
 
 	svcConfig := &service.Config{
-		Name:        "SQMeterAlpacaSafetyMonitor",
-		DisplayName: "SQMeter Alpaca SafetyMonitor",
+		Name:        "SQMeterASCOMAlpaca",
+		DisplayName: "SQMeter ASCOM Alpaca",
 		Description: "ASCOM Alpaca SafetyMonitor bridge for SQMeter ESP32. Responds to Alpaca discovery on UDP port 32227.",
 	}
 
@@ -278,6 +303,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+	prg.svc = s
 
 	if *svcCmd != "" {
 		if err := service.Control(s, *svcCmd); err != nil {
@@ -302,6 +328,14 @@ func main() {
 
 	if err := s.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	// Exit with code 1 when a web-triggered restart was requested so that a
+	// service manager configured for "restart on failure" (Windows Service
+	// recovery options, NSSM AppExit, systemd Restart=on-failure) will restart
+	// the process. A plain stop exits with 0 and the service stays stopped.
+	if prg.restartRequested.Load() {
 		os.Exit(1)
 	}
 }
@@ -380,8 +414,8 @@ func printDiagnosticsReport(r web.DiagnosticsReport) {
 		return out
 	}
 
-	fmt.Println("sqmeter-alpaca-safetymonitor diagnostics")
-	fmt.Println("=========================================")
+	fmt.Println("sqmeter-ascom-alpaca diagnostics")
+	fmt.Println("================================")
 	fmt.Printf("version:    %s\n", none(r.Version))
 	fmt.Printf("timestamp:  %s\n", r.Timestamp)
 	fmt.Printf("uptime:     %s\n", r.Uptime)

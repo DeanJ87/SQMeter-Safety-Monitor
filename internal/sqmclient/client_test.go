@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"sqmeter-alpaca-safetymonitor/internal/sqmclient"
+	"sqmeter-ascom-alpaca/internal/sqmclient"
 )
 
 func newFakeServer(sensors sqmclient.SensorsResponse, status sqmclient.StatusResponse) *httptest.Server {

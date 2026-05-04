@@ -1,13 +1,25 @@
-# sqmeter-alpaca-safetymonitor
+# SQMeter ASCOM Alpaca
 
-[![CI](https://github.com/DeanJ87/SQMeter-Safety-Monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/DeanJ87/SQMeter-Safety-Monitor/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/github/DeanJ87/SQMeter-Safety-Monitor/graph/badge.svg?token=I7DHSX92BN)](https://codecov.io/github/DeanJ87/SQMeter-Safety-Monitor)
+[![CI](https://github.com/DeanJ87/SQMeter-ASCOM-Alpaca/actions/workflows/ci.yml/badge.svg)](https://github.com/DeanJ87/SQMeter-ASCOM-Alpaca/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/github/DeanJ87/SQMeter-ASCOM-Alpaca/graph/badge.svg?token=I7DHSX92BN)](https://codecov.io/github/DeanJ87/SQMeter-ASCOM-Alpaca)
 
-A standalone **ASCOM Alpaca SafetyMonitor** bridge for the [SQMeter ESP32](https://deanj87.github.io/SQMeter/) sky-quality sensor.
+A native **ASCOM Alpaca bridge** for the [SQMeter ESP32](https://deanj87.github.io/SQMeter/) sky-quality sensor.
 
-Runs as a single `.exe` on your N.I.N.A. Windows machine.  No ASCOM COM drivers, no registration, no Visual Studio templates — pure Alpaca over HTTP/UDP.
+Runs as a single `.exe` (or Windows service) on your observatory PC. No ASCOM COM drivers, no ASCOM Remote Server, no Visual Studio templates — pure Alpaca over HTTP/UDP.
 
 [Privacy policy](PRIVACY.md)
+
+---
+
+## Project scope and naming
+
+| Name | Meaning |
+|------|---------|
+| **SQMeter ASCOM Alpaca** | This project — the bridge/service that reads from an SQMeter ESP32 and speaks ASCOM Alpaca. |
+| **SQMeter SafetyMonitor** | The Alpaca `SafetyMonitor` device exposed by this bridge. Used by N.I.N.A. for safety decisions. |
+| **SQMeter ObservingConditions** | The Alpaca `ObservingConditions` device exposed by this bridge. Used by N.I.N.A. for capture metadata (FITS/XISF headers). |
+
+Both devices are served from a single service on the same HTTP port. The binary and Go module are named `sqmeter-ascom-alpaca`.
 
 ---
 
@@ -16,152 +28,36 @@ Runs as a single `.exe` on your N.I.N.A. Windows machine.  No ASCOM COM drivers,
 - Polls `GET /api/sensors` on your SQMeter every few seconds
 - Evaluates configurable safety rules (cloud cover, SQM, humidity, dew-point margin, sensor health)
 - Exposes a standards-compliant **ASCOM Alpaca SafetyMonitor** device at `http://localhost:11111`
-- Responds to **ASCOM Alpaca UDP discovery** on port 32227 so N.I.N.A. finds it automatically
+- Exposes a standards-compliant **ASCOM Alpaca ObservingConditions** device at the same port
+- Responds to **ASCOM Alpaca UDP discovery** on port 32227 so N.I.N.A. finds both devices automatically
 - Serves a live **web dashboard** at `http://localhost:11111/`
-- Provides a `/status.json` debug endpoint
+- Provides a `/status.json` debug endpoint and a `--diagnostics` CLI command
 
-It answers one question: **"Is it safe for the observatory to operate right now?"**
-
-> **Scope note:** This project is *only* the SafetyMonitor bridge.  An ObservingConditions driver (temperature, humidity, sky brightness, etc. as Alpaca properties) is a separate future project.
+It answers two questions: **"Is it safe for the observatory to operate right now?"** and **"What are the current sky conditions?"**
 
 ---
 
 ## Quick start (Windows)
 
-1. Download `sqmeter-alpaca-safetymonitor-windows-amd64.exe` from [Releases](../../releases)
-2. Double-click the exe — a console window will open and the setup page will open automatically on first run
-3. Complete setup at `http://localhost:11111/setup` to point the service at your SQMeter
-4. Browse to `http://localhost:11111` to see the dashboard
-5. In N.I.N.A. → Equipment → Safety Monitor → select **ASCOM Alpaca** and connect
+1. Download `sqmeter-ascom-alpaca-setup-vX.Y.Z.exe` from [Releases](https://github.com/DeanJ87/SQMeter-ASCOM-Alpaca/releases)
+2. Run the installer as Administrator — it installs the binary, registers a Windows service, and starts it
+3. On first run the setup page opens automatically at `http://localhost:11111/setup`
+4. Complete setup to point the bridge at your SQMeter
+5. Browse to `http://localhost:11111` to see the dashboard
+6. In N.I.N.A. → Equipment → Safety Monitor → select **ASCOM Alpaca** → click **Refresh** → select **SQMeter SafetyMonitor** → **Connect**
+
+For full N.I.N.A. setup (SafetyMonitor + ObservingConditions), see [docs/nina.md](docs/nina.md).
 
 ---
 
-## Upgrading
+## Documentation
 
-The supported upgrade path is **install over the existing version** — you do not need to uninstall first.
-
-### Steps
-
-1. Download the new installer (`sqmeter-alpaca-safetymonitor-setup-vX.Y.Z.exe`) from [Releases](../../releases).
-2. Run the installer as Administrator.
-3. The installer automatically stops and unregisters the running service before replacing the binary, then re-registers and restarts it.
-4. Your `config.json` is never touched by the installer — settings are always preserved across upgrades.
-
-### What the installer does during an upgrade
-
-| Step | Details |
-|------|---------|
-| Stop service | The existing service is stopped and unregistered before the binary is replaced. |
-| Replace binary | The new `sqmeter-alpaca-safetymonitor.exe` is written to the install directory. |
-| Re-register service | The service is registered against the new binary and started. |
-| Config preserved | `config.json` and `device-uuid.txt` in `%ProgramData%\SQMeter SafetyMonitor\` are not modified by the installer. |
-
-### Rollback
-
-To roll back to a previous version, run the older installer over the current installation using the same install-over-existing process. Your `config.json` is unaffected.
-
-### Config schema migration
-
-When a new version introduces a config schema change, the binary migrates the in-memory config automatically on startup. If the on-disk file has an older `config_version`, the binary:
-
-1. Creates a timestamped backup (e.g. `config.20240115T120000Z.bak`) beside `config.json`.
-2. Rewrites `config.json` with the migrated settings.
-
-If the config file has a `config_version` newer than the binary supports, the service will not start — upgrade the binary to match.
-
-### Automatic updates
-
-Automatic update checking is **not implemented**. New releases are published on [GitHub Releases](../../releases). A future tray icon may offer a "check for updates" link to that page.
-
-Run `sqmeter-alpaca-safetymonitor.exe --version` to see the current version and the releases URL.
-
----
-
-## Configuration
-
-Configuration is managed through the web setup UI at `http://localhost:11111/setup`.
-
-### Config file location
-
-| Platform | Default path |
-|----------|-------------|
-| Windows | `%ProgramData%\SQMeter SafetyMonitor\config.json` |
-| Linux / macOS | `<directory containing the executable>/config.json` |
-
-On Windows the config file lives in `%ProgramData%` (typically `C:\ProgramData\SQMeter SafetyMonitor\config.json`), not beside the `.exe`. This keeps the install directory under `Program Files` free of mutable user data.
-
-Override the path at any time with `--config <path>`.
-
-#### Migrating from an older installation
-
-Versions prior to this release stored `config.json` beside the executable in the install directory (e.g. `C:\Program Files\SQMeter Alpaca SafetyMonitor\config.json`). To migrate manually:
-
-1. Stop the service: `sqmeter-alpaca-safetymonitor.exe --service stop`
-2. Copy `config.json` from the install directory to `%ProgramData%\SQMeter SafetyMonitor\`.
-3. Start the service: `sqmeter-alpaca-safetymonitor.exe --service start`
-
-If no config exists in `%ProgramData%`, the service starts with built-in defaults and the setup page opens automatically.
-
-You can also edit `config.json` directly:
-
-```json
-{
-  "SQMETER_BASE_URL": "http://192.168.1.100",
-  "ALPACA_HTTP_PORT": 11111,
-  "CLOUD_COVER_UNSAFE_PERCENT": 80,
-  "FAIL_CLOSED": true
-}
-```
-
-| Key | Default | Description |
-|-----|---------|-------------|
-| `SQMETER_BASE_URL` | *required* | Base URL of your SQMeter device |
-| `ALPACA_HTTP_BIND` | `127.0.0.1` | HTTP bind address |
-| `ALPACA_HTTP_PORT` | `11111` | HTTP port for Alpaca API + web UI |
-| `ALPACA_DISCOVERY_PORT` | `32227` | UDP port for Alpaca discovery |
-| `POLL_INTERVAL_SECONDS` | `5` | How often to poll the SQMeter |
-| `STALE_AFTER_SECONDS` | `30` | Report unsafe if data is older than this |
-| `FAIL_CLOSED` | `true` | Report unsafe if SQMeter is unreachable |
-| `CONNECTED_ON_STARTUP` | `true` | Start in connected state |
-| `CLOUD_COVER_UNSAFE_PERCENT` | `80` | Cloud cover % that triggers UNSAFE |
-| `CLOUD_COVER_CAUTION_PERCENT` | `50` | Cloud cover % that triggers a warning |
-| `REQUIRE_LIGHT_SENSOR_STATUS_OK` | `true` | Unsafe if light sensor reports error |
-| `REQUIRE_ENVIRONMENT_STATUS_OK` | `true` | Unsafe if env sensor reports error |
-| `REQUIRE_IR_TEMPERATURE_STATUS_OK` | `true` | Unsafe if IR sensor reports error |
-| `SQM_MIN_SAFE` | *(off)* | Unsafe if SQM drops below this |
-| `HUMIDITY_MAX_SAFE` | *(off)* | Unsafe if humidity exceeds this |
-| `DEWPOINT_MARGIN_MIN_C` | *(off)* | Unsafe if temp−dewpoint < this (°C) |
-| `MANUAL_OVERRIDE` | `auto` | `auto` \| `force_safe` \| `force_unsafe` |
-| `LOG_LEVEL` | `info` | `debug` \| `info` \| `warn` \| `error` |
-
-Binding `ALPACA_HTTP_BIND` to `0.0.0.0` exposes the service to the network. Only use it on a trusted LAN or behind firewall controls.
-
-### Config file is the source of truth
-
-`config.json` is the authoritative source for all application settings. The setup UI reads and writes it directly. No `.env` file is auto-loaded, and broad application-setting environment variables are not supported.
-
-The only environment variable that influences runtime behaviour is `LOG_LEVEL` (a process/logging concern). All other settings must be in `config.json`.
-
-### CLI flags
-
-| Flag | Description |
-|------|-------------|
-| `--config <path>` | Path to the JSON config file (default: `%ProgramData%\SQMeter SafetyMonitor\config.json` on Windows, `<exedir>/config.json` on other platforms) |
-| `--write-default-config` | Write default settings to `--config` path and exit |
-| `--check-config` | Validate the config file and exit |
-
-For CI or scripted testing, generate a temporary config file and pass it with `--config` rather than relying on environment variables.
-
-### Sensor status codes
-
-The SQMeter reports a `status` field for each sensor:
-
-| Value | Meaning |
-|-------|---------|
-| 0 | OK |
-| 1 | Sensor not found |
-| 2 | Read error |
-| 3 | Stale data |
+- [docs/configuration.md](docs/configuration.md) — config file, all settings, CLI flags, sensor status codes
+- [docs/windows-service.md](docs/windows-service.md) — service install/start/stop/uninstall, NSSM, firewall
+- [docs/upgrading.md](docs/upgrading.md) — upgrade steps, config preservation, schema migration, rollback
+- [docs/nina.md](docs/nina.md) — N.I.N.A. SafetyMonitor and ObservingConditions setup
+- [docs/nina-alpaca-discovery.md](docs/nina-alpaca-discovery.md) — Alpaca discovery deep-dive, port numbers, PowerShell checks, ASCOM Simulators coexistence
+- [docs/troubleshooting.md](docs/troubleshooting.md) — discovery issues, diagnostics CLI, common problems
 
 ---
 
@@ -182,98 +78,63 @@ The bridge declares UNSAFE if **any** of the following are true:
 
 The web UI and `/status.json` always show the reason(s) for any UNSAFE state.
 
+> **Important:** This is a safety integration. Test thoroughly before using it
+> for automated roof or dome control. Verify IsSafe behaviour against known
+> sensor conditions before relying on it for automation.
+
 ---
 
-## curl test examples
+## ObservingConditions properties
+
+| Property | Source | Notes |
+|---|---|---|
+| `cloudcover` | IR temperature differential | Requires IR sensor OK |
+| `dewpoint` | BME280 | Requires env sensor OK |
+| `humidity` | BME280 | Requires env sensor OK |
+| `pressure` | BME280 | Requires env sensor OK |
+| `skybrightness` | TSL2591 lux | Requires light sensor OK |
+| `skyquality` | TSL2591 SQM | Requires light sensor OK |
+| `skytemperature` | MLX90614 object temp | Requires IR sensor OK |
+| `temperature` | BME280 | Requires env sensor OK |
+| `rainrate` | — | Not implemented (no rain sensor) |
+| `starfwhm` | — | Not implemented |
+| `winddirection` | — | Not implemented (no anemometer) |
+| `windgust` | — | Not implemented |
+| `windspeed` | — | Not implemented |
+| `averageperiod` | — | Always 0; averaging not supported |
+
+When a sensor is temporarily unavailable (hardware error, stale data), the property returns an Alpaca error `0x04FF` with a descriptive message rather than a silently wrong value.
+
+---
+
+## curl quick-test
 
 ```bash
-# Management API
-curl http://localhost:11111/management/apiversions
-curl http://localhost:11111/management/v1/description
+# List all Alpaca devices served by this bridge
 curl http://localhost:11111/management/v1/configureddevices
 
-# SafetyMonitor
+# SafetyMonitor — is it safe?
 curl "http://localhost:11111/api/v1/safetymonitor/0/issafe?ClientID=1&ClientTransactionID=1"
-curl "http://localhost:11111/api/v1/safetymonitor/0/connected?ClientID=1&ClientTransactionID=2"
-curl "http://localhost:11111/api/v1/safetymonitor/0/name?ClientID=1&ClientTransactionID=3"
 
-# Status / health
-curl http://localhost:11111/status.json
+# ObservingConditions — sky quality
+curl "http://localhost:11111/api/v1/observingconditions/0/skyquality?ClientID=1&ClientTransactionID=1"
+
+# Health and full status
 curl http://localhost:11111/health
-
-# Force refresh via Alpaca action
-curl -X PUT http://localhost:11111/api/v1/safetymonitor/0/action \
-     -d "Action=refresh&ClientID=1&ClientTransactionID=10"
-
-# Disconnect
-curl -X PUT http://localhost:11111/api/v1/safetymonitor/0/connected \
-     -d "Connected=false&ClientID=1&ClientTransactionID=11"
+curl http://localhost:11111/status.json
 ```
 
----
-
-## N.I.N.A. setup
-
-1. Start `sqmeter-alpaca-safetymonitor.exe`
-2. Open N.I.N.A.
-3. Go to **Equipment → Safety Monitor**
-4. In the device selector, choose **ASCOM Alpaca**
-5. Click the **Refresh** / discovery button — **SQMeter SafetyMonitor** should appear
-6. Select it and click **Connect**
-7. Watch the IsSafe indicator; verify it matches `http://localhost:11111/status.json`
-
-If discovery does not work, manually add the device:
-
-- Host: `127.0.0.1`
-- Port: `11111`
-- Device type: `SafetyMonitor`
-- Device number: `0`
-
-For a full explanation of how Alpaca discovery works, how to verify it manually,
-and how to troubleshoot conflicts with ASCOM Alpaca Simulators, see
-[docs/nina-alpaca-discovery.md](docs/nina-alpaca-discovery.md).
-
----
-
-## Running as a Windows service
-
-### Option A: NSSM (recommended)
-
-```cmd
-nssm install SQMeterAlpaca "C:\path\to\sqmeter-alpaca-safetymonitor.exe"
-nssm set SQMeterAlpaca AppDirectory "C:\path\to\"
-nssm set SQMeterAlpaca AppStdout "C:\path\to\logs\out.log"
-nssm set SQMeterAlpaca AppStderr "C:\path\to\logs\err.log"
-nssm start SQMeterAlpaca
-```
-
-### Option B: Task Scheduler
-
-1. Open Task Scheduler → Create Task
-2. Trigger: At system startup
-3. Action: Start a program → path to exe
-4. Set "Run whether user is logged on or not"
-
----
-
-## Firewall (Windows)
-
-Allow the HTTP and UDP ports through Windows Firewall (run as Administrator):
-
-```cmd
-netsh advfirewall firewall add rule name="SQMeter Alpaca HTTP" dir=in action=allow protocol=TCP localport=11111
-netsh advfirewall firewall add rule name="SQMeter Alpaca Discovery" dir=in action=allow protocol=UDP localport=32227
-```
+See [docs/nina-alpaca-discovery.md](docs/nina-alpaca-discovery.md) for a complete curl/PowerShell reference.
 
 ---
 
 ## Building from source
 
 ```bash
-git clone https://github.com/your-org/sqmeter-alpaca-safetymonitor
-cd sqmeter-alpaca-safetymonitor
-make build          # ./bin/sqmeter-alpaca-safetymonitor (current platform)
-make build-windows  # ./dist/sqmeter-alpaca-safetymonitor-windows-amd64.exe
+git clone https://github.com/DeanJ87/SQMeter-ASCOM-Alpaca
+cd SQMeter-ASCOM-Alpaca
+make build          # ./bin/sqmeter-ascom-alpaca (current platform)
+make build-windows  # ./dist/sqmeter-ascom-alpaca-windows-amd64.exe
 make test           # run all tests with race detector
 make lint           # gofmt check + go vet
 ```
@@ -288,20 +149,14 @@ VERSION=v0.1.0 make build
 
 Or GoReleaser handles this automatically on tagged releases.
 
-### Module path
-
-If you fork this repository, update the module path in `go.mod` and all
-`import` statements from `github.com/sqmeter-alpaca/sqmeter-alpaca-safetymonitor`
-to your own path.
-
 ---
 
 ## GitHub Actions
 
 | Workflow | Trigger | Jobs |
 |----------|---------|------|
-| `ci.yml` | push/PR to `main` | lint, test, build Windows + Linux |
-| `release.yml` | `v*.*.*` tag pushed | tests + GoReleaser → GitHub Release |
+| `ci.yml` | push/PR to `main` | lint, test, build Windows + Linux, ASCOM Conform |
+| `release.yml` | `v*.*.*` tag pushed | tests + GoReleaser → GitHub Release + Windows installer |
 
 To publish a release:
 
@@ -314,11 +169,9 @@ git push origin v0.1.0
 
 ## Alpaca Conform testing
 
-For ASCOM Conform Universal testing:
-
 1. Download [ASCOM Conform Universal](https://github.com/ASCOMInitiative/ConformU/releases)
-2. Configure it to connect to your Alpaca device at `http://127.0.0.1:11111` device `0`
-3. Run the SafetyMonitor conformance check
+2. Connect to `http://127.0.0.1:11111`, device `0`
+3. Run the SafetyMonitor conformance check; repeat for ObservingConditions
 
 Target: `v1.0.0` once all Conform tests pass.
 
@@ -329,14 +182,3 @@ Target: `v1.0.0` once all Conform tests pass.
 - `v0.1.0` — initial usable release
 - `v0.2.x` — feature additions
 - `v1.0.0` — after Alpaca Conform testing passes
-
----
-
-## Branch naming
-
-| Pattern | Use |
-|---------|-----|
-| `main` | stable, CI-protected |
-| `feature/alpaca-safetymonitor` | new features |
-| `fix/discovery-response` | bug fixes |
-| `chore/ci-release` | CI/build changes |

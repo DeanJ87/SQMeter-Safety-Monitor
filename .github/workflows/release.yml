@@ -59,8 +59,8 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           go build \
             -ldflags "-X main.version=${VERSION} -X main.commit=${GITHUB_SHA} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            -o installer/bin/sqmeter-alpaca-safetymonitor.exe \
-            ./cmd/sqmeter-alpaca-safetymonitor
+            -o installer/bin/sqmeter-ascom-alpaca.exe \
+            ./cmd/sqmeter-ascom-alpaca
 
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
@@ -78,7 +78,7 @@ jobs:
           TAG="${GITHUB_REF_NAME}"
           VERSION="${TAG#v}"
           gh release upload "${TAG}" \
-            "installer/Output/sqmeter-alpaca-safetymonitor-setup-${VERSION}.exe" \
+            "installer/Output/sqmeter-ascom-alpaca-setup-${VERSION}.exe" \
             --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

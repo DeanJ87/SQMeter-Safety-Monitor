@@ -8,15 +8,15 @@ import (
 
 const (
 	// AppDataDirName is the subdirectory name used under %ProgramData% on Windows.
-	AppDataDirName = "SQMeter SafetyMonitor"
+	AppDataDirName = "SQMeter ASCOM Alpaca"
 
 	// ReleasesURL is the canonical URL for checking the latest release.
-	ReleasesURL = "https://github.com/DeanJ87/SQMeter-Safety-Monitor/releases"
+	ReleasesURL = "https://github.com/DeanJ87/SQMeter-ASCOM-Alpaca/releases"
 )
 
 // DefaultConfigPath returns the platform-appropriate default path for config.json.
 //
-// On Windows:  %ProgramData%\SQMeter SafetyMonitor\config.json
+// On Windows:  %ProgramData%\SQMeter ASCOM Alpaca\config.json
 // Other:       <exeDir>/config.json  (preserves prior behaviour)
 //
 // The --config CLI flag always overrides this value.
@@ -32,7 +32,7 @@ func DefaultConfigPath(exeDir string) string {
 
 // DefaultUUIDPath returns the platform-appropriate default path for device-uuid.txt.
 //
-// On Windows:  %ProgramData%\SQMeter SafetyMonitor\device-uuid.txt
+// On Windows:  %ProgramData%\SQMeter ASCOM Alpaca\device-uuid.txt
 // Other:       <exeDir>/device-uuid.txt
 func DefaultUUIDPath(exeDir string) string {
 	if runtime.GOOS == "windows" {
@@ -41,4 +41,18 @@ func DefaultUUIDPath(exeDir string) string {
 		}
 	}
 	return filepath.Join(exeDir, "device-uuid.txt")
+}
+
+// DefaultOCUUIDPath returns the platform-appropriate default path for the
+// ObservingConditions device UUID file.
+//
+// On Windows:  %ProgramData%\SQMeter ASCOM Alpaca\device-oc-uuid.txt
+// Other:       <exeDir>/device-oc-uuid.txt
+func DefaultOCUUIDPath(exeDir string) string {
+	if runtime.GOOS == "windows" {
+		if pd := os.Getenv("ProgramData"); pd != "" {
+			return filepath.Join(pd, AppDataDirName, "device-oc-uuid.txt")
+		}
+	}
+	return filepath.Join(exeDir, "device-oc-uuid.txt")
 }

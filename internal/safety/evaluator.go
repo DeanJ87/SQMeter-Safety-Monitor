@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"sqmeter-alpaca-safetymonitor/internal/config"
-	"sqmeter-alpaca-safetymonitor/internal/sqmclient"
-	"sqmeter-alpaca-safetymonitor/internal/state"
+	"sqmeter-ascom-alpaca/internal/config"
+	"sqmeter-ascom-alpaca/internal/sqmclient"
+	"sqmeter-ascom-alpaca/internal/state"
 )
 
 // Input is everything the evaluator needs to produce a safety decision.

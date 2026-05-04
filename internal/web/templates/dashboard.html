@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="refresh" content="10">
-<title>SQMeter SafetyMonitor</title>
+<title>SQMeter ASCOM Alpaca</title>
 <style>
   :root {
     --safe-bg:    #0a3d1f;
@@ -119,6 +119,22 @@
   .links a { color: #5b9bd5; text-decoration: none; margin-right: 12px; }
   .links a:hover { text-decoration: underline; }
 
+  .svc-controls { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .btn {
+    padding: 6px 14px;
+    border: none;
+    border-radius: 5px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.4px;
+  }
+  .btn-warn   { background: #7a4a00; color: #f39c12; border: 1px solid #f39c12; }
+  .btn-warn:hover   { background: #9a5e00; }
+  .btn-danger { background: #5a0a0a; color: #e74c3c; border: 1px solid #e74c3c; }
+  .btn-danger:hover { background: #7a1010; }
+  #svc-msg { margin-top: 8px; font-size: 0.8rem; display: none; }
+
   footer {
     margin-top: 20px;
     border-top: 1px solid var(--border);
@@ -132,7 +148,7 @@
 
 <header>
   <div>
-    <h1>SQMeter SafetyMonitor</h1>
+    <h1>SQMeter ASCOM Alpaca</h1>
     <small>ASCOM Alpaca bridge &nbsp;·&nbsp; port {{.HTTPPort}} &nbsp;·&nbsp; uptime {{.Uptime}}</small>
   </div>
   <div style="text-align:right">
@@ -264,6 +280,49 @@
   </div>
 
 </div>
+
+{{if .ServiceControlEnabled}}
+<div class="card" style="margin-bottom:16px;" id="service-controls">
+  <h2>Service Controls</h2>
+  {{if .WideOpen}}
+  <p style="color:var(--warn-fg);font-size:0.8rem;margin-bottom:6px;">
+    ⚠ Service is reachable from the network — these controls affect all connected clients.
+  </p>
+  {{end}}
+  <p style="color:var(--muted);font-size:0.8rem;margin-bottom:2px;">
+    Restart exits and relies on the service manager to restart automatically.<br>
+    Stop ends the process — N.I.N.A./Alpaca integration is unavailable until the service is restarted.
+  </p>
+  <div class="svc-controls">
+    <button class="btn btn-warn" onclick="svcAction('restart')">Restart service</button>
+    <button class="btn btn-danger" onclick="svcAction('stop')">Stop service</button>
+  </div>
+  <div id="svc-msg"></div>
+</div>
+<script>
+function svcAction(action) {
+  var msgs = {
+    restart: 'Restart the service?\n\nThe service will exit and restart if the service manager is configured to do so (Windows Service recovery, NSSM, or systemd Restart=on-failure). It will briefly be unavailable.',
+    stop:    'Stop the service?\n\nWARNING: This will shut down the safety bridge. N.I.N.A. and all Alpaca clients will lose safety integration until the service is manually restarted.\n\nAre you sure?'
+  };
+  if (!window.confirm(msgs[action])) return;
+  var msg = document.getElementById('svc-msg');
+  msg.textContent = 'Sending ' + action + ' request…';
+  msg.style.display = 'block';
+  msg.style.color = '#8892a4';
+  fetch('/api/service/' + action, {method: 'POST'})
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      msg.textContent = d.message || (d.ok ? 'Done.' : 'Failed.');
+      msg.style.color = d.ok ? '#2ecc71' : '#e74c3c';
+    })
+    .catch(function() {
+      msg.textContent = action + ' command sent — service is shutting down.';
+      msg.style.color = '#f39c12';
+    });
+}
+</script>
+{{end}}
 
 <div class="links">
   Alpaca:

@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"sqmeter-alpaca-safetymonitor/internal/sqmclient"
+	"sqmeter-ascom-alpaca/internal/sqmclient"
 )
 
 // Values are the sensor readings that informed the safety decision.

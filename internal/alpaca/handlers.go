@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"sqmeter-alpaca-safetymonitor/internal/config"
-	"sqmeter-alpaca-safetymonitor/internal/state"
+	"sqmeter-ascom-alpaca/internal/config"
+	"sqmeter-ascom-alpaca/internal/state"
 )
 
 const (
@@ -19,17 +19,24 @@ const (
 	deviceType       = "SafetyMonitor"
 	deviceNumber     = 0
 	description      = "ASCOM Alpaca SafetyMonitor bridge for SQMeter ESP32"
-	driverInfo       = "SQMeter Alpaca SafetyMonitor"
+	driverInfo       = "SQMeter ASCOM Alpaca"
 )
 
 // Handler serves all ASCOM Alpaca endpoints for the SafetyMonitor device.
 type Handler struct {
-	cfgHolder  *config.Holder
-	holder     *state.Holder
-	serverTxID atomic.Uint32
-	deviceUUID string
-	version    string
-	refreshFn  func(ctx context.Context)
+	cfgHolder    *config.Holder
+	holder       *state.Holder
+	serverTxID   atomic.Uint32
+	deviceUUID   string
+	version      string
+	refreshFn    func(ctx context.Context)
+	extraDevices []ConfiguredDevice
+}
+
+// AddConfiguredDevice appends a device to the list returned by
+// /management/v1/configureddevices. Call this before the server starts.
+func (h *Handler) AddConfiguredDevice(dev ConfiguredDevice) {
+	h.extraDevices = append(h.extraDevices, dev)
 }
 
 // New creates a Handler.  refreshFn is called synchronously by the "refresh"
@@ -183,8 +190,8 @@ func (h *Handler) GetAPIVersions(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetServerDescription(w http.ResponseWriter, r *http.Request) {
 	_, clientTxID := parseGetParams(r)
 	writeJSON(w, okResp(clientTxID, h.nextTxID(), ServerDescription{
-		ServerName:          "SQMeter Alpaca SafetyMonitor",
-		Manufacturer:        "sqmeter-alpaca",
+		ServerName:          "SQMeter ASCOM Alpaca",
+		Manufacturer:        "sqmeter-ascom-alpaca",
 		ManufacturerVersion: h.version,
 		Location:            "local",
 	}))
@@ -192,9 +199,11 @@ func (h *Handler) GetServerDescription(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) GetConfiguredDevices(w http.ResponseWriter, r *http.Request) {
 	_, clientTxID := parseGetParams(r)
-	writeJSON(w, okResp(clientTxID, h.nextTxID(), []ConfiguredDevice{
+	devices := []ConfiguredDevice{
 		{DeviceName: deviceName, DeviceType: deviceType, DeviceNumber: deviceNumber, UniqueID: h.deviceUUID},
-	}))
+	}
+	devices = append(devices, h.extraDevices...)
+	writeJSON(w, okResp(clientTxID, h.nextTxID(), devices))
 }
 
 // ---------- Common device GET endpoints --------------------------------------

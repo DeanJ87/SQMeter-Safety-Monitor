@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"sqmeter-alpaca-safetymonitor/internal/config"
+	"sqmeter-ascom-alpaca/internal/config"
 )
 
 // TestDefaultConfigPath_NonWindows verifies that on non-Windows platforms the
@@ -69,6 +69,37 @@ func TestDefaultUUIDPath_Windows_ProgramData(t *testing.T) {
 	want := filepath.Join(pd, config.AppDataDirName, "device-uuid.txt")
 	if got != want {
 		t.Errorf("DefaultUUIDPath on Windows = %q, want %q", got, want)
+	}
+}
+
+// TestDefaultOCUUIDPath_NonWindows verifies that on non-Windows the OC UUID
+// file defaults to the executable directory.
+func TestDefaultOCUUIDPath_NonWindows(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("non-Windows path test skipped on Windows")
+	}
+	exeDir := "/opt/sqmeter"
+	got := config.DefaultOCUUIDPath(exeDir)
+	want := filepath.Join(exeDir, "device-oc-uuid.txt")
+	if got != want {
+		t.Errorf("DefaultOCUUIDPath(%q) = %q, want %q", exeDir, got, want)
+	}
+}
+
+// TestDefaultOCUUIDPath_Windows_ProgramData verifies the Windows ProgramData
+// OC UUID path.
+func TestDefaultOCUUIDPath_Windows_ProgramData(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows ProgramData path test only runs on Windows")
+	}
+	pd := os.Getenv("ProgramData")
+	if pd == "" {
+		t.Skip("ProgramData not set")
+	}
+	got := config.DefaultOCUUIDPath("/any/exe/dir")
+	want := filepath.Join(pd, config.AppDataDirName, "device-oc-uuid.txt")
+	if got != want {
+		t.Errorf("DefaultOCUUIDPath on Windows = %q, want %q", got, want)
 	}
 }
 

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"sqmeter-alpaca-safetymonitor/internal/config"
+	"sqmeter-ascom-alpaca/internal/config"
 )
 
 // ---------- NeedsRestart -----------------------------------------------------

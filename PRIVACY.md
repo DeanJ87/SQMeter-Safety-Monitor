@@ -1,12 +1,12 @@
 # Privacy Policy
 
-SQMeter Alpaca SafetyMonitor is a local bridge between an SQMeter ESP32 device and ASCOM Alpaca clients on your network.
+SQMeter ASCOM Alpaca is a local bridge between an SQMeter ESP32 device and ASCOM Alpaca clients on your network.
 
 ## Data Collection
 
 The application does not collect analytics, telemetry, personal data, or usage data.
 
-It reads sensor values from the SQMeter device URL that you configure and exposes derived SafetyMonitor status through the local Alpaca HTTP API and web interface.
+It reads sensor values from the SQMeter device URL that you configure and exposes SafetyMonitor and ObservingConditions data through the local Alpaca HTTP API and web interface.
 
 ## Network Communication
 
