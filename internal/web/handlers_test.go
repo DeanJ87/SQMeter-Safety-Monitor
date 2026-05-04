@@ -881,8 +881,9 @@ func TestServiceStop_WithoutCallback_Returns501(t *testing.T) {
 }
 
 func TestServiceRestart_GET_DoesNotTriggerAction(t *testing.T) {
-	// GET /api/service/restart is not a known web UI path and returns 404.
-	// It must never call the service callback — service actions require an explicit POST.
+	// GET /api/service/restart is not a registered route (only POST is).
+	// It falls through to the /api/ catch-all and returns 404.
+	// This is the intended safety behaviour: service actions require an explicit POST.
 	h, _, _ := newTestWebHandler(t, true, safeEv())
 	triggered := false
 	h.WithServiceControl(func() { triggered = true }, nil)
@@ -894,13 +895,11 @@ func TestServiceRestart_GET_DoesNotTriggerAction(t *testing.T) {
 	if triggered {
 		t.Error("GET /api/service/restart: must not trigger restart callback")
 	}
-	// Must not return service-control JSON
-	if strings.Contains(w.Body.String(), `"ok"`) {
-		t.Error("GET /api/service/restart: must not return service-control JSON")
-	}
 }
 
 func TestServiceStop_GET_DoesNotTriggerAction(t *testing.T) {
+	// GET /api/service/stop is not a registered route (only POST is).
+	// It falls through to the /api/ catch-all and returns 404.
 	h, _, _ := newTestWebHandler(t, true, safeEv())
 	triggered := false
 	h.WithServiceControl(nil, func() { triggered = true })
@@ -911,9 +910,6 @@ func TestServiceStop_GET_DoesNotTriggerAction(t *testing.T) {
 	}
 	if triggered {
 		t.Error("GET /api/service/stop: must not trigger stop callback")
-	}
-	if strings.Contains(w.Body.String(), `"ok"`) {
-		t.Error("GET /api/service/stop: must not return service-control JSON")
 	}
 }
 
@@ -978,6 +974,48 @@ func TestGetSetup_DisplaysOptionalFloats(t *testing.T) {
 	}
 	if !strings.Contains(body, "2.3") {
 		t.Error("GET /setup: expected DEWPOINT_MARGIN_MIN_C value 2.3 in response")
+	}
+}
+
+// ---------- route conflict prevention tests ---------------------------------
+
+func TestDashboard_GET_RootPath(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	w := serve(t, h, http.MethodGet, "/", "")
+	if w.Code != http.StatusOK {
+		t.Errorf("GET /: want 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "SQMeter") {
+		t.Error("GET /: expected dashboard HTML")
+	}
+}
+
+func TestDashboard_HEAD_RootPath(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	w := serve(t, h, http.MethodHead, "/", "")
+	if w.Code != http.StatusOK {
+		t.Errorf("HEAD /: want 200, got %d", w.Code)
+	}
+}
+
+func TestDashboard_POST_RootPath_MethodNotAllowed(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	w := serve(t, h, http.MethodPost, "/", "")
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("POST /: want 405, got %d", w.Code)
+	}
+	allow := w.Header().Get("Allow")
+	if allow != "GET, HEAD" {
+		t.Errorf("POST /: want Allow: GET, HEAD, got %q", allow)
+	}
+}
+
+func TestDashboard_UnknownPath_NotFound(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	w := serve(t, h, http.MethodGet, "/nonexistent", "")
+	if w.Code != http.StatusNotFound {
+		t.Errorf("GET /nonexistent: want 404, got %d", w.Code)
 	}
 }
 

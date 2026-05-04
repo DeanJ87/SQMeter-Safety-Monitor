@@ -71,10 +71,6 @@ func New(cfgHolder *config.Holder, holder *state.Holder) (*Handler, error) {
 
 // Register wires web routes onto mux.
 func (h *Handler) Register(mux *http.ServeMux) {
-	// Use method-agnostic "/" so that alpaca's "/api/" catch-all (which is also
-	// method-agnostic) can take precedence without a Go 1.22 pattern conflict.
-	// Method-qualified "/api/service/*" and "/api/diagnostics" patterns remain
-	// more specific and still resolve correctly.
 	mux.HandleFunc("/", h.Dashboard)
 	mux.HandleFunc("GET /status", h.Dashboard)
 	mux.HandleFunc("GET /health", h.Health)
@@ -142,9 +138,16 @@ type DashboardData struct {
 }
 
 func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
-	// "/" is a catch-all; only serve dashboard for known web UI paths.
+	// Only serve dashboard at / and /status.
 	if r.URL.Path != "/" && r.URL.Path != "/status" {
 		http.NotFound(w, r)
+		return
+	}
+
+	// Only accept GET and HEAD methods.
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		w.Header().Set("Allow", "GET, HEAD")
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
