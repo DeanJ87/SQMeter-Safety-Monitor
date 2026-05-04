@@ -13,7 +13,7 @@ version** — you do not need to uninstall first.
 3. The installer stops and unregisters the existing service, replaces the
    binary, re-registers the service, and starts it.
 4. `config.json` and `device-uuid.txt` in
-   `%ProgramData%\SQMeter SafetyMonitor\` are **never touched** by the
+   `%ProgramData%\SQMeter ASCOM Alpaca\` are **never touched** by the
    installer — your settings are always preserved.
 
 ---
@@ -25,7 +25,7 @@ version** — you do not need to uninstall first.
 | Stop service | The existing service is stopped and unregistered before the binary is replaced, so the running executable is not locked. |
 | Replace binary | The new `sqmeter-ascom-alpaca.exe` is written to the install directory. |
 | Re-register service | The service is registered against the new binary and started. |
-| Config preserved | `config.json`, `device-uuid.txt`, and `device-oc-uuid.txt` in `%ProgramData%\SQMeter SafetyMonitor\` are not modified. |
+| Config preserved | `config.json`, `device-uuid.txt`, and `device-oc-uuid.txt` in `%ProgramData%\SQMeter ASCOM Alpaca\` are not modified. |
 
 ---
 
@@ -58,7 +58,7 @@ To roll back to a previous version:
    process.
 3. `config.json` is unaffected. If the older binary does not understand the
    current `config_version`, it will refuse to start — restore a backup config
-   from `%ProgramData%\SQMeter SafetyMonitor\` in that case.
+   from `%ProgramData%\SQMeter ASCOM Alpaca\` in that case.
 
 ---
 
@@ -75,7 +75,7 @@ To migrate manually:
    sqmeter-ascom-alpaca.exe --service stop
    ```
 2. Copy `config.json` from the install directory to
-   `%ProgramData%\SQMeter SafetyMonitor\`.
+   `%ProgramData%\SQMeter ASCOM Alpaca\`.
 3. Start the service:
    ```cmd
    sqmeter-ascom-alpaca.exe --service start

@@ -13,7 +13,7 @@ manually with the CLI flags below.
 | Service name | `SQMeterASCOMAlpaca` |
 | Display name | `SQMeter ASCOM Alpaca` |
 | Startup type | Automatic (set by installer) |
-| Config / data directory | `%ProgramData%\SQMeter SafetyMonitor\` |
+| Config / data directory | `%ProgramData%\SQMeter ASCOM Alpaca\` |
 | Install directory | `%ProgramFiles%\SQMeter ASCOM Alpaca\` (default) |
 
 ---

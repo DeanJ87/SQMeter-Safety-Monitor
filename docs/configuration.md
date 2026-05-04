@@ -10,11 +10,11 @@ writes this file directly.
 
 | Platform | Default path |
 |----------|-------------|
-| Windows | `%ProgramData%\SQMeter SafetyMonitor\config.json` |
+| Windows | `%ProgramData%\SQMeter ASCOM Alpaca\config.json` |
 | Linux / macOS | `<directory containing the executable>/config.json` |
 
 On Windows the config file lives in `%ProgramData%`
-(typically `C:\ProgramData\SQMeter SafetyMonitor\config.json`), not beside the
+(typically `C:\ProgramData\SQMeter ASCOM Alpaca\config.json`), not beside the
 `.exe`. This keeps the install directory under `Program Files` free of mutable
 user data.
 

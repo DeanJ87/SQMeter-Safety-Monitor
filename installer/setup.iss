@@ -5,13 +5,13 @@
 ;   1. BeforeInstall hook stops and uninstalls the running service.
 ;   2. Installer replaces the binary.
 ;   3. [Run] re-installs and restarts the service.
-;   4. config.json lives in %ProgramData%\SQMeter SafetyMonitor\ and is never
+;   4. config.json lives in %ProgramData%\SQMeter ASCOM Alpaca\ and is never
 ;      touched by the installer, so user configuration is preserved on upgrade.
 ;   5. device-uuid.txt is in the same ProgramData directory and is similarly
 ;      left untouched.
 ;
 ; ProgramData directory:
-;   The binary defaults to %ProgramData%\SQMeter SafetyMonitor\ for config
+;   The binary defaults to %ProgramData%\SQMeter ASCOM Alpaca\ for config
 ;   and the device UUID. The installer creates this directory on fresh install
 ;   and writes a default config.json only when one does not already exist.
 ;   On upgrade the existing config is always preserved.
@@ -20,7 +20,7 @@
 ;   The service is stopped and unregistered. The binary and install-directory
 ;   files are removed. The ProgramData directory (config, UUID, logs) is NOT
 ;   removed, so user settings survive uninstall. Delete
-;   %ProgramData%\SQMeter SafetyMonitor\ manually if a clean removal is wanted.
+;   %ProgramData%\SQMeter ASCOM Alpaca\ manually if a clean removal is wanted.
 ;
 ; Automatic update checking is not implemented. Users upgrade by downloading
 ; the new installer from GitHub Releases and running it over the existing
@@ -37,7 +37,7 @@
 #define ExeName      "sqmeter-ascom-alpaca.exe"
 #define SetupBase    "sqmeter-ascom-alpaca-setup"
 ; AppDataDir must match config.AppDataDirName in internal/config/paths.go.
-#define AppDataDir   "SQMeter SafetyMonitor"
+#define AppDataDir   "SQMeter ASCOM Alpaca"
 
 [Setup]
 AppId={{E3A7C2B1-4F8D-4E2A-9C3B-1D5F7A8E0B2C}

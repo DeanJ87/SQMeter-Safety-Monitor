@@ -19,7 +19,7 @@
    This writes a default config to the platform-appropriate path and exits.
 4. If `config_version` in the config file is newer than the binary supports,
    the service refuses to start. Upgrade the binary or restore a backup config
-   from `%ProgramData%\SQMeter SafetyMonitor\`.
+   from `%ProgramData%\SQMeter ASCOM Alpaca\`.
 
 ---
 
@@ -146,7 +146,7 @@ cannot free the ports, then restart the service.
 
 If the service logs `config_version X is newer than the binary supports`, the
 running binary is older than the config file. Upgrade the binary or restore an
-earlier backup config from `%ProgramData%\SQMeter SafetyMonitor\`.
+earlier backup config from `%ProgramData%\SQMeter ASCOM Alpaca\`.
 
 ---
 

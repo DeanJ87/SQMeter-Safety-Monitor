@@ -219,7 +219,7 @@ func (p *program) run(ctx context.Context, interactive bool) {
 
 func main() {
 	// Default config and data paths use the platform-appropriate location.
-	// On Windows this is %ProgramData%\SQMeter SafetyMonitor\; on other
+	// On Windows this is %ProgramData%\SQMeter ASCOM Alpaca\; on other
 	// platforms the directory containing the executable is used.
 	exe, _ := os.Executable()
 	exeDir := filepath.Dir(exe)
