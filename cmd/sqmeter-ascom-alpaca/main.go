@@ -75,6 +75,22 @@ func (p *program) Stop(_ service.Service) error {
 func (p *program) run(ctx context.Context, interactive bool) {
 	defer close(p.stopped)
 
+	// Migrate app data from the legacy "SQMeter SafetyMonitor" path to the new
+	// "SQMeter ASCOM Alpaca" path before any config is read.  This is a no-op
+	// when the new path already has a config or on non-Windows platforms.
+	if runtime.GOOS == "windows" {
+		if pd := os.Getenv("ProgramData"); pd != "" {
+			newDir := filepath.Join(pd, config.AppDataDirName)
+			legacyDir := filepath.Join(pd, config.LegacyAppDataDirName)
+			// Use a minimal logger for the migration step (full logger needs config).
+			migLogger := slog.Default()
+			if err := config.MigrateAppDataDir(newDir, legacyDir, migLogger); err != nil {
+				fmt.Fprintf(os.Stderr, "app data migration error: %v\n", err)
+				return
+			}
+		}
+	}
+
 	_, statErr := os.Stat(p.cfgPath)
 	isFirstRun := os.IsNotExist(statErr)
 
