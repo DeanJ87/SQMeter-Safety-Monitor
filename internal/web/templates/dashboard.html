@@ -1099,7 +1099,11 @@ td.disabled { color: var(--muted); font-style: italic; }
               {{if eq .Result "pass"}}✓ pass{{else if eq .Result "fail"}}✗ fail{{else if eq .Result "warn"}}⚠ caution{{else}}— n/a{{end}}
             </span>
           </td>
-          <td {{if not .Enabled}}class="disabled"{{end}}>{{if .Enabled}}yes{{else}}no (disabled){{end}}</td>
+          <td {{if not .Enabled}}class="disabled"{{end}}>
+            <span class="pill {{if .Enabled}}pill-ok{{else}}pill-muted{{end}}">
+              {{if .Enabled}}enabled{{else}}disabled{{end}}
+            </span>
+          </td>
         </tr>
         {{end}}
       </tbody>
