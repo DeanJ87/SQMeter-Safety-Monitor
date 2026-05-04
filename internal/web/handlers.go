@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -214,10 +215,16 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 		data.DiscoveryError = ds.LastError
 	}
 	data.ServiceControlEnabled = h.onRestart != nil || h.onStop != nil
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := h.dash.Execute(w, data); err != nil {
+
+	// Execute template into a buffer first to catch errors before writing headers
+	var buf bytes.Buffer
+	if err := h.dash.Execute(&buf, data); err != nil {
 		http.Error(w, "template error: "+err.Error(), http.StatusInternalServerError)
+		return
 	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write(buf.Bytes())
 }
 
 // buildOCProperties constructs the Observing Conditions property table rows from

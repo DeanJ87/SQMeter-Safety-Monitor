@@ -315,6 +315,43 @@ nav { padding: 0 6px; flex: 1; }
 .kv .v.err  { color: var(--unsafe); }
 .kv .v.warn { color: var(--warn);   }
 
+/* Reading row (from reference design) */
+.reading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.78rem;
+  gap: 12px;
+}
+.reading-row:last-child { border-bottom: none; }
+.reading-row .rk { color: var(--muted); flex: 1; }
+.reading-row .rv { font-family: var(--mono); text-align: right; white-space: nowrap; font-weight: 600; }
+.reading-row .rv.ok   { color: var(--safe);   }
+.reading-row .rv.err  { color: var(--unsafe); }
+.reading-row .rv.warn { color: var(--warn);   }
+.reading-row .rv.dim  { color: var(--muted); font-weight: 500; }
+
+/* Card head (reference design style) */
+.card-head {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -14px -14px 0;
+}
+.card-body { padding: 0; }
+.card-body:not(.tight) { padding: 14px; }
+.card-body.tight { padding: 14px 0; }
+
 /* ---------- Tables -------------------------------------------------- */
 .data-table {
   width: 100%;
@@ -788,71 +825,65 @@ td.disabled { color: var(--muted); font-style: italic; }
 
   <!-- Current Readings -->
   <div class="card">
-    <div class="card-title">Current Readings</div>
+    <div class="card-head">Current Readings</div>
     {{if .HasData}}
-    <div class="kv-grid">
-      <div>
-        <div class="kv"><span class="k">SQM</span><span class="v">{{printf "%.2f" .State.Values.SQM}} mag/arcsec²</span></div>
-        <div class="kv"><span class="k">Bortle</span><span class="v">{{printf "%.1f" .State.Values.Bortle}}</span></div>
-        <div class="kv"><span class="k">Cloud cover</span><span class="v {{if ge .State.Values.CloudCoverPercent .Config.CloudCoverUnsafePct}}err{{else if ge .State.Values.CloudCoverPercent .Config.CloudCoverCautionPct}}warn{{else}}ok{{end}}">{{printf "%.1f" .State.Values.CloudCoverPercent}}%</span></div>
-        <div class="kv"><span class="k">Cloud condition</span><span class="v">{{.State.Values.CloudCondition}}</span></div>
-        <div class="kv"><span class="k">IR delta</span><span class="v">{{printf "%.1f" .State.Values.TemperatureDelta}}°C</span></div>
-      </div>
-      <div>
-        <div class="kv"><span class="k">Temperature</span><span class="v">{{printf "%.1f" .State.Values.Temperature}}°C</span></div>
-        <div class="kv"><span class="k">Humidity</span><span class="v">{{printf "%.1f" .State.Values.Humidity}}%</span></div>
-        <div class="kv"><span class="k">Dew point</span><span class="v">{{printf "%.1f" .State.Values.Dewpoint}}°C</span></div>
-        <div class="kv"><span class="k">Dew margin</span><span class="v {{if lt .DewMargin 3.0}}warn{{else}}ok{{end}}">{{printf "%.1f" .DewMargin}}°C</span></div>
-      </div>
+    <div class="card-body tight">
+      <div class="reading-row"><span class="rk">SQM</span><span class="rv">{{printf "%.2f" .State.Values.SQM}} mag/arcsec²</span></div>
+      <div class="reading-row"><span class="rk">Bortle class</span><span class="rv">{{printf "%.1f" .State.Values.Bortle}}</span></div>
+      <div class="reading-row"><span class="rk">Cloud cover</span><span class="rv {{if ge .State.Values.CloudCoverPercent .Config.CloudCoverUnsafePct}}err{{else if ge .State.Values.CloudCoverPercent .Config.CloudCoverCautionPct}}warn{{else}}ok{{end}}">{{printf "%.1f" .State.Values.CloudCoverPercent}}%</span></div>
+      <div class="reading-row"><span class="rk">Cloud condition</span><span class="rv">{{.State.Values.CloudCondition}}</span></div>
+      <div class="reading-row"><span class="rk">Temperature</span><span class="rv">{{printf "%.1f" .State.Values.Temperature}}°C</span></div>
+      <div class="reading-row"><span class="rk">Humidity</span><span class="rv">{{printf "%.1f" .State.Values.Humidity}}%</span></div>
+      <div class="reading-row"><span class="rk">Dew point</span><span class="rv">{{printf "%.1f" .State.Values.Dewpoint}}°C</span></div>
+      <div class="reading-row"><span class="rk">Dew margin</span><span class="rv {{if lt .DewMargin 3.0}}warn{{else}}ok{{end}}">{{printf "%.1f" .DewMargin}}°C</span></div>
+      <div class="reading-row"><span class="rk">IR delta</span><span class="rv">{{printf "%.1f" .State.Values.TemperatureDelta}}°C</span></div>
     </div>
     {{else}}
-    <div class="not-available">No sensor data available yet.</div>
+    <div class="card-body" style="text-align:center;color:var(--muted);padding:24px 14px;">
+      No sensor data available yet.
+    </div>
     {{end}}
   </div>
 
   <!-- Bridge Status -->
   <div class="card">
-    <div class="card-title">Bridge Status</div>
-    <div class="kv-grid">
-      <div>
-        <div class="kv"><span class="k">Version</span><span class="v">{{if .Version}}{{.Version}}{{else}}—{{end}}</span></div>
-        <div class="kv"><span class="k">Bind</span><span class="v {{if .WideOpen}}warn{{end}}">{{.HTTPBind}}:{{.HTTPPort}}</span></div>
-        <div class="kv"><span class="k">SQMeter URL</span><span class="v">{{.SQMeterURL}}</span></div>
-        <div class="kv"><span class="k">Override</span><span class="v {{if ne .Override "auto"}}warn{{end}}">{{.Override}}</span></div>
-      </div>
-      <div>
-        <div class="kv"><span class="k">Poll interval</span><span class="v">{{.Config.PollIntervalSeconds}}s</span></div>
-        <div class="kv"><span class="k">Stale after</span><span class="v">{{.Config.StaleAfterSeconds}}s</span></div>
-        <div class="kv"><span class="k">Fail-closed</span><span class="v">{{if .Config.FailClosed}}yes{{else}}no{{end}}</span></div>
-        <div class="kv"><span class="k">Connected</span><span class="v {{if .Connected}}ok{{else}}err{{end}}">{{if .Connected}}yes{{else}}no{{end}}</span></div>
-      </div>
+    <div class="card-head">Bridge Status</div>
+    <div class="card-body tight">
+      <div class="reading-row"><span class="rk">Version</span><span class="rv">{{if .Version}}{{.Version}}{{else}}—{{end}}</span></div>
+      <div class="reading-row"><span class="rk">Bind address</span><span class="rv {{if .WideOpen}}warn{{end}}">{{.HTTPBind}}:{{.HTTPPort}}</span></div>
+      <div class="reading-row"><span class="rk">SQMeter URL</span><span class="rv">{{.SQMeterURL}}</span></div>
+      <div class="reading-row"><span class="rk">Poll interval</span><span class="rv">{{.Config.PollIntervalSeconds}}s</span></div>
+      <div class="reading-row"><span class="rk">Stale after</span><span class="rv">{{.Config.StaleAfterSeconds}}s</span></div>
+      <div class="reading-row"><span class="rk">Fail-closed</span><span class="rv {{if .Config.FailClosed}}ok{{end}}">{{if .Config.FailClosed}}yes{{else}}no{{end}}</span></div>
+      <div class="reading-row"><span class="rk">Override</span><span class="rv {{if ne .Override "auto"}}warn{{else}}dim{{end}}">{{.Override}}</span></div>
+      <div class="reading-row"><span class="rk">Connected</span><span class="rv {{if .Connected}}ok{{else}}err{{end}}">{{if .Connected}}yes{{else}}no{{end}}</span></div>
     </div>
   </div>
 
   <!-- Poll Timing -->
   <div class="card">
-    <div class="card-title">Poll Timing</div>
-    <div class="kv"><span class="k">Last poll</span><span class="v">{{.LastPoll}}</span></div>
-    <div class="kv"><span class="k">Last success</span><span class="v">{{.LastSuccess}}</span></div>
-    <div class="kv"><span class="k">Data age</span><span class="v">{{.DataAge}}</span></div>
-    {{if .State.LastError}}
-    <div class="kv"><span class="k">Last error</span><span class="v err" style="font-size:0.72rem;max-width:280px;word-break:break-all;">{{.State.LastError}}</span></div>
-    {{end}}
+    <div class="card-head">Poll Timing</div>
+    <div class="card-body tight">
+      <div class="reading-row"><span class="rk">Last poll</span><span class="rv">{{.LastPoll}}</span></div>
+      <div class="reading-row"><span class="rk">Last success</span><span class="rv">{{.LastSuccess}}</span></div>
+      <div class="reading-row"><span class="rk">Data age</span><span class="rv">{{.DataAge}}</span></div>
+      {{if .State.LastError}}
+      <div class="reading-row"><span class="rk">Last error</span><span class="rv err" style="font-size:0.7rem;max-width:100%;word-break:break-all;">{{.State.LastError}}</span></div>
+      {{end}}
+    </div>
   </div>
 
   <!-- Exposed Alpaca Devices -->
   <div class="card">
-    <div class="card-title">Exposed Alpaca Devices</div>
-    <div style="display:flex;flex-direction:column;gap:6px;">
-      <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);">
-        <span class="status-badge available">ObservingConditions/0</span>
-        <span style="font-size:0.78rem;color:var(--muted);">SQMeter ObservingConditions</span>
-        <a href="/api/v1/observingconditions/0/cloudcover" style="font-size:0.7rem;font-family:var(--mono);color:var(--accent);margin-left:auto;text-decoration:none;">/cloudcover</a>
+    <div class="card-head">Alpaca Devices</div>
+    <div class="card-body tight">
+      <div class="reading-row">
+        <span class="rk">ObservingConditions/0</span>
+        <span class="rv dim" style="font-size:0.7rem;">SQMeter ObservingConditions</span>
       </div>
-      <div style="display:flex;align-items:center;gap:10px;padding:6px 0;">
-        <span class="status-badge available">SafetyMonitor/0</span>
-        <span style="font-size:0.78rem;color:var(--muted);">SQMeter SafetyMonitor</span>
-        <a href="/api/v1/safetymonitor/0/issafe" style="font-size:0.7rem;font-family:var(--mono);color:var(--accent);margin-left:auto;text-decoration:none;">/issafe</a>
+      <div class="reading-row">
+        <span class="rk">SafetyMonitor/0</span>
+        <span class="rv dim" style="font-size:0.7rem;">SQMeter SafetyMonitor</span>
       </div>
     </div>
   </div>
@@ -1058,58 +1089,66 @@ td.disabled { color: var(--muted); font-style: italic; }
   </div>
 
   {{if .State.Reasons}}
-  <div class="card" style="border-color:var(--unsafe-border);">
-    <div class="card-title" style="color:var(--unsafe);">Unsafe Reasons</div>
-    <ul class="reasons-list">
-      {{range .State.Reasons}}<li>{{.}}</li>{{end}}
-    </ul>
+  <div class="card" style="border-color:var(--unsafe-border);background:var(--unsafe-bg);">
+    <div class="card-head" style="color:var(--unsafe);">⚠ Unsafe Reasons</div>
+    <div class="card-body">
+      <ul class="reasons-list">
+        {{range .State.Reasons}}<li>{{.}}</li>{{end}}
+      </ul>
+    </div>
   </div>
   {{end}}
 
   {{if .State.Warnings}}
-  <div class="card" style="border-color:var(--warn-border);">
-    <div class="card-title" style="color:var(--warn);">Warnings / Cautions</div>
-    <ul class="warnings-list">
-      {{range .State.Warnings}}<li>{{.}}</li>{{end}}
-    </ul>
+  <div class="card" style="border-color:var(--warn-border);background:var(--warn-bg);">
+    <div class="card-head" style="color:var(--warn);">⚠ Warnings / Cautions</div>
+    <div class="card-body">
+      <ul class="warnings-list">
+        {{range .State.Warnings}}<li>{{.}}</li>{{end}}
+      </ul>
+    </div>
   </div>
   {{end}}
 
   <div class="card">
-    <div class="card-title">Safety Rules</div>
+    <div class="card-head">Safety Rules</div>
     {{if .SafetyRules}}
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Rule</th>
-          <th>Threshold</th>
-          <th>Current</th>
-          <th>Result</th>
-          <th>Enabled</th>
-        </tr>
-      </thead>
-      <tbody>
-        {{range .SafetyRules}}
-        <tr>
-          <td>{{.Name}}</td>
-          <td class="mono">{{.Threshold}}</td>
-          <td class="mono">{{.Current}}</td>
-          <td>
-            <span class="result-badge {{.Result}}">
-              {{if eq .Result "pass"}}✓ pass{{else if eq .Result "fail"}}✗ fail{{else if eq .Result "warn"}}⚠ caution{{else}}— n/a{{end}}
-            </span>
-          </td>
-          <td {{if not .Enabled}}class="disabled"{{end}}>
-            <span class="pill {{if .Enabled}}pill-ok{{else}}pill-muted{{end}}">
-              {{if .Enabled}}enabled{{else}}disabled{{end}}
-            </span>
-          </td>
-        </tr>
-        {{end}}
-      </tbody>
-    </table>
+    <div class="card-body tight">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Rule</th>
+            <th>Threshold</th>
+            <th>Current</th>
+            <th>Result</th>
+            <th>Enabled</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .SafetyRules}}
+          <tr>
+            <td>{{.Name}}</td>
+            <td class="mono">{{.Threshold}}</td>
+            <td class="mono">{{.Current}}</td>
+            <td>
+              <span class="result-badge {{.Result}}">
+                {{if eq .Result "pass"}}✓ pass{{else if eq .Result "fail"}}✗ fail{{else if eq .Result "warn"}}⚠ caution{{else}}— n/a{{end}}
+              </span>
+            </td>
+            <td {{if not .Enabled}}class="disabled"{{end}}>
+              <span class="pill {{if .Enabled}}pill-ok{{else}}pill-muted{{end}}">
+                {{if .Enabled}}enabled{{else}}disabled{{end}}
+              </span>
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
     {{else}}
-    <div class="not-available">No safety rules configured.</div>
+    <div class="card-body" style="text-align:center;color:var(--muted);padding:24px 14px;">
+      No safety rules configured.
+    </div>
     {{end}}
   </div>
 
@@ -1126,28 +1165,31 @@ td.disabled { color: var(--muted); font-style: italic; }
   </div>
 
   <div class="card">
-    <table class="data-table" id="oc-table">
-      <thead>
-        <tr>
-          <th>Alpaca Property</th>
-          <th>SQMeter Source</th>
-          <th>Value</th>
-          <th>Unit</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        {{range .OCProps}}
-        <tr data-oc-status="{{.Status}}">
-          <td>{{.AlpacaName}}</td>
-          <td class="mono muted">{{.Source}}</td>
-          <td class="mono {{if eq .Status "available"}}{{else}}muted{{end}}">{{.Value}}</td>
-          <td class="mono muted">{{.Unit}}</td>
-          <td><span class="status-badge {{.Status}}">{{.Status}}</span></td>
-        </tr>
-        {{end}}
-      </tbody>
-    </table>
+    <div class="card-head">Available Properties</div>
+    <div class="card-body tight">
+      <table class="data-table" id="oc-table">
+        <thead>
+          <tr>
+            <th>Alpaca Property</th>
+            <th>SQMeter Source</th>
+            <th>Value</th>
+            <th>Unit</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .OCProps}}
+          <tr data-oc-status="{{.Status}}">
+            <td>{{.AlpacaName}}</td>
+            <td class="mono muted">{{.Source}}</td>
+            <td class="mono {{if eq .Status "available"}}{{else}}muted{{end}}">{{.Value}}</td>
+            <td class="mono muted">{{.Unit}}</td>
+            <td><span class="status-badge {{.Status}}">{{.Status}}</span></td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
   </div>
 
 </div><!-- /observing-conditions -->
