@@ -9,9 +9,6 @@
 ;      touched by the installer, so user configuration is preserved on upgrade.
 ;   5. device-uuid.txt is in the same ProgramData directory and is similarly
 ;      left untouched.
-;   6. On first startup after upgrading from a beta build that used
-;      %ProgramData%\SQMeter SafetyMonitor\, the binary automatically copies
-;      config files to the new path.  The legacy directory is not removed.
 ;
 ; ProgramData directory:
 ;   The binary defaults to %ProgramData%\SQMeter ASCOM Alpaca\ for config

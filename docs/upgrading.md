@@ -15,10 +15,6 @@ version** — you do not need to uninstall first.
 4. `config.json` and `device-uuid.txt` in
    `%ProgramData%\SQMeter ASCOM Alpaca\` are **never touched** by the
    installer — your settings are always preserved.
-5. If you are upgrading from a beta build that stored config in
-   `%ProgramData%\SQMeter SafetyMonitor\`, the new binary automatically
-   copies your config to the new path on first startup (see
-   [App data path migration](#app-data-path-migration) below).
 
 ---
 
@@ -30,41 +26,6 @@ version** — you do not need to uninstall first.
 | Replace binary | The new `sqmeter-ascom-alpaca.exe` is written to the install directory. |
 | Re-register service | The service is registered against the new binary and started. |
 | Config preserved | `config.json`, `device-uuid.txt`, and `device-oc-uuid.txt` in `%ProgramData%\SQMeter ASCOM Alpaca\` are not modified. |
-
----
-
-## App data path migration
-
-Starting with this release the default Windows data directory changed from
-`%ProgramData%\SQMeter SafetyMonitor\` (used in beta builds) to
-`%ProgramData%\SQMeter ASCOM Alpaca\`.
-
-On the first startup after upgrading, the binary checks for the legacy
-directory and automatically copies `config.json` and any `.bak` backup files
-to the new location. The legacy directory is **never deleted**, so your
-original files remain available for manual rollback.
-
-### What happens when both paths exist
-
-If `%ProgramData%\SQMeter ASCOM Alpaca\config.json` already exists (e.g. you
-ran the new binary once before), migration is skipped and the legacy path is
-left untouched. The new path always wins — legacy config is never overwritten.
-
-### Manual rollback (path migration)
-
-If you need to revert to the legacy path:
-
-1. Stop the service:
-   ```cmd
-   sqmeter-ascom-alpaca.exe --service stop
-   ```
-2. Copy `config.json` from `%ProgramData%\SQMeter SafetyMonitor\` back to
-   `%ProgramData%\SQMeter ASCOM Alpaca\` (or use `--config` to point at the
-   legacy path directly).
-3. Start the service:
-   ```cmd
-   sqmeter-ascom-alpaca.exe --service start
-   ```
 
 ---
 

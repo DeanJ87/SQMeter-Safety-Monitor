@@ -18,17 +18,6 @@ On Windows the config file lives in `%ProgramData%`
 `.exe`. This keeps the install directory under `Program Files` free of mutable
 user data.
 
-### Upgrading from beta (legacy path)
-
-Early beta releases used `%ProgramData%\SQMeter SafetyMonitor\` as the data
-directory. On the first startup after upgrading, the binary automatically copies
-`config.json` and any backup files from the legacy path to the new
-`SQMeter ASCOM Alpaca` path. The legacy directory is never deleted, so your
-original files remain available for rollback.
-
-If the new path already contains a `config.json`, no migration is performed
-and the legacy directory is left untouched.
-
 Override the path at runtime with `--config <path>`.
 
 ---
