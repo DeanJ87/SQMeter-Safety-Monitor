@@ -32,7 +32,7 @@
 
 #define AppName      "SQMeter Alpaca SafetyMonitor"
 #define AppPublisher "DeanJ87"
-#define AppURL       "https://github.com/DeanJ87/SQMeter-Safety-Monitor"
+#define AppURL       "https://github.com/DeanJ87/SQMeter-ASCOM-Alpaca"
 #define ServiceName  "SQMeterAlpacaSafetyMonitor"
 #define ExeName      "sqmeter-alpaca-safetymonitor.exe"
 #define SetupBase    "sqmeter-alpaca-safetymonitor-setup"

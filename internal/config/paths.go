@@ -11,7 +11,10 @@ const (
 	AppDataDirName = "SQMeter SafetyMonitor"
 
 	// ReleasesURL is the canonical URL for checking the latest release.
-	ReleasesURL = "https://github.com/DeanJ87/SQMeter-Safety-Monitor/releases"
+	// NOTE: This URL targets the renamed repository (SQMeter-ASCOM-Alpaca).
+	// Until the GitHub repo is actually renamed, GitHub will redirect from the
+	// old SQMeter-Safety-Monitor URL. Once renamed, no further change is needed.
+	ReleasesURL = "https://github.com/DeanJ87/SQMeter-ASCOM-Alpaca/releases"
 )
 
 // DefaultConfigPath returns the platform-appropriate default path for config.json.
