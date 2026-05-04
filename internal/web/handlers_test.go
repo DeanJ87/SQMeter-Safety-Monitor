@@ -2,6 +2,7 @@ package web_test
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -79,6 +80,26 @@ func serve(t *testing.T, h *web.Handler, method, path, body string) *httptest.Re
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	return w
+}
+
+type failingResponseWriter struct {
+	header http.Header
+	code   int
+}
+
+func (w *failingResponseWriter) Header() http.Header {
+	if w.header == nil {
+		w.header = make(http.Header)
+	}
+	return w.header
+}
+
+func (w *failingResponseWriter) Write([]byte) (int, error) {
+	return 0, errors.New("forced write failure")
+}
+
+func (w *failingResponseWriter) WriteHeader(code int) {
+	w.code = code
 }
 
 // ---------- /health ----------------------------------------------------------
@@ -167,6 +188,18 @@ func TestDashboard_Renders200(t *testing.T) {
 	ct := w.Header().Get("Content-Type")
 	if !strings.HasPrefix(ct, "text/html") {
 		t.Errorf("dashboard Content-Type: want text/html, got %q", ct)
+	}
+}
+
+func TestDashboard_WriteFailureReturnsWithoutPanic(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := &failingResponseWriter{}
+
+	h.Dashboard(w, req)
+
+	if ct := w.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
+		t.Fatalf("dashboard Content-Type: want text/html before write failure, got %q", ct)
 	}
 }
 
@@ -341,6 +374,25 @@ func TestGetSetup_Renders200(t *testing.T) {
 	ct := w.Header().Get("Content-Type")
 	if !strings.HasPrefix(ct, "text/html") {
 		t.Errorf("GET /setup Content-Type: want text/html, got %q", ct)
+	}
+}
+
+func TestGetSetup_RendersConfigurationShellFeedback(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	w := serve(t, h, http.MethodGet, "/setup?saved=1&restart=1&error=bad+config", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /setup: want 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	for _, want := range []string{
+		`data-initial-page="configuration"`,
+		"Configuration saved.",
+		"Saved changes require restart.",
+		"Error: bad config",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("GET /setup: expected %q in configuration shell", want)
+		}
 	}
 }
 
