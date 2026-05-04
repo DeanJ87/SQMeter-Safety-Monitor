@@ -1,6 +1,7 @@
 # Build output
 bin/
 dist/
+node_modules/
 
 # Coverage
 coverage.out

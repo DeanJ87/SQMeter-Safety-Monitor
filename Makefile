@@ -9,22 +9,27 @@ CONFORM_VERSION  := v4.3.0
 CONFORM_DIR      := .conform
 CONFORM_LINUX_URL := https://github.com/ASCOMInitiative/ConformU/releases/download/$(CONFORM_VERSION)/conformu.linux-x64.tar.xz
 
-.PHONY: all build build-windows build-linux build-linux-arm64 test lint fmt vet clean run \
+.PHONY: all assets css build build-windows build-linux build-linux-arm64 test lint fmt vet clean run \
         service-install service-start service-stop service-uninstall service-status \
         conform conform-download
 
 all: build
 
-build:
+assets: css
+
+css:
+	npm run build:assets
+
+build: assets
 	go build $(LDFLAGS) -o bin/$(BINARY) $(MAIN)
 
-build-windows:
+build-windows: assets
 	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o dist/$(BINARY)-windows-amd64.exe $(MAIN)
 
-build-linux:
+build-linux: assets
 	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o dist/$(BINARY)-linux-amd64 $(MAIN)
 
-build-linux-arm64:
+build-linux-arm64: assets
 	GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o dist/$(BINARY)-linux-arm64 $(MAIN)
 
 test:

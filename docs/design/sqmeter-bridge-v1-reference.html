@@ -1,0 +1,1584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQMeter SafetyMonitor Bridge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        oklch(0.12 0.015 240);
+    --bg-panel:  oklch(0.16 0.018 240);
+    --bg-row:    oklch(0.19 0.018 240);
+    --bg-input:  oklch(0.14 0.016 240);
+    --border:    oklch(0.26 0.02 240);
+    --border-hi: oklch(0.35 0.025 240);
+
+    --text:      oklch(0.88 0.01 240);
+    --text-dim:  oklch(0.55 0.015 240);
+    --text-faint:oklch(0.38 0.012 240);
+
+    --green:     oklch(0.72 0.18 142);
+    --green-dim: oklch(0.40 0.10 142);
+    --green-bg:  oklch(0.20 0.06 142);
+    --amber:     oklch(0.78 0.18 50);
+    --amber-dim: oklch(0.42 0.10 50);
+    --amber-bg:  oklch(0.20 0.07 50);
+    --red:       oklch(0.65 0.22 25);
+    --red-dim:   oklch(0.38 0.12 25);
+    --red-bg:    oklch(0.20 0.08 25);
+    --blue:      oklch(0.70 0.16 220);
+    --blue-dim:  oklch(0.38 0.09 220);
+
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+
+    --sidebar-w: 220px;
+    --header-h: 48px;
+  }
+
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 13px; line-height: 1.5; }
+
+  #root { height: 100%; display: flex; flex-direction: column; }
+
+  /* scrollbars */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border-hi); }
+
+  /* utils */
+  .mono { font-family: var(--mono); }
+  .dim { color: var(--text-dim); }
+  .faint { color: var(--text-faint); }
+  .green { color: var(--green); }
+  .amber { color: var(--amber); }
+  .red { color: var(--red); }
+  .blue { color: var(--blue); }
+
+  /* ── HEADER ── */
+  .app-header {
+    height: var(--header-h);
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 12px;
+    flex-shrink: 0;
+    user-select: none;
+  }
+  .app-header .brand {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .app-header .brand span { color: var(--blue); }
+  .app-header .meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-dim);
+    font-size: 11px;
+    font-family: var(--mono);
+  }
+  .app-header .meta .sep { color: var(--border-hi); }
+  .app-header .spacer { flex: 1; }
+  .header-badge {
+    display: flex; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+  }
+  .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .dot-green { background: var(--green); box-shadow: 0 0 4px var(--green); }
+  .dot-amber { background: var(--amber); }
+  .dot-red   { background: var(--red); box-shadow: 0 0 4px var(--red); }
+  .dot-dim   { background: var(--text-faint); }
+
+  /* ── WARN BANNER ── */
+  .warn-banner {
+    background: var(--amber-bg);
+    border-bottom: 1px solid var(--amber-dim);
+    padding: 6px 16px;
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--amber);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .warn-banner a { color: var(--amber); text-decoration: underline; cursor: pointer; }
+
+  /* ── LAYOUT ── */
+  .app-body {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    width: var(--sidebar-w);
+    flex-shrink: 0;
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .sidebar-status {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .sidebar-status .label {
+    font-size: 10px;
+    font-family: var(--mono);
+    letter-spacing: 0.08em;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+  .safety-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 4px;
+    border: 1px solid;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+  }
+  .safety-badge.safe   { color: var(--green); border-color: var(--green-dim); background: var(--green-bg); }
+  .safety-badge.unsafe { color: var(--red);   border-color: var(--red-dim);   background: var(--red-bg);   }
+  .safety-badge.unknown{ color: var(--text-dim); border-color: var(--border); background: transparent; }
+
+  .status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    padding: 1px 0;
+  }
+  .status-row .k { color: var(--text-dim); }
+  .status-row .v { font-family: var(--mono); font-size: 11px; }
+
+  /* ── NAV ── */
+  .sidebar-nav {
+    padding: 8px 0;
+    flex: 1;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 14px;
+    font-size: 12px;
+    color: var(--text-dim);
+    cursor: pointer;
+    border-left: 2px solid transparent;
+    transition: color 0.12s, background 0.12s;
+    user-select: none;
+  }
+  .nav-item:hover { color: var(--text); background: var(--bg-row); }
+  .nav-item.active {
+    color: var(--text);
+    border-left-color: var(--blue);
+    background: var(--bg-row);
+  }
+  .nav-icon {
+    width: 14px; height: 14px; flex-shrink: 0;
+    opacity: 0.7;
+  }
+  .nav-item.active .nav-icon { opacity: 1; }
+
+  .sidebar-footer {
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--text-faint);
+    line-height: 1.8;
+  }
+  .sidebar-footer a { color: var(--blue); text-decoration: none; }
+  .sidebar-footer a:hover { text-decoration: underline; }
+
+  /* ── MAIN CONTENT ── */
+  .main {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* section header */
+  .section-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 4px;
+  }
+
+  /* ── CARD ── */
+  .card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+  .card-head {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-body { padding: 12px 14px; }
+  .card-body.tight { padding: 0; }
+
+  /* ── DATA TABLE ── */
+  .data-table { width: 100%; border-collapse: collapse; }
+  .data-table tr:not(:last-child) td { border-bottom: 1px solid var(--border); }
+  .data-table td {
+    padding: 6px 14px;
+    font-size: 12px;
+    vertical-align: middle;
+  }
+  .data-table td:first-child { color: var(--text-dim); width: 180px; }
+  .data-table td:last-child  { font-family: var(--mono); text-align: right; }
+  .data-table.wide td:first-child { width: 240px; }
+
+  /* ── GRID ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+
+  /* ── OVERVIEW STAT TILES ── */
+  .stat-tile {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .stat-tile .k { font-size: 10px; font-family: var(--mono); color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.07em; }
+  .stat-tile .v { font-family: var(--mono); font-size: 20px; font-weight: 600; line-height: 1; }
+  .stat-tile .sub { font-size: 10px; color: var(--text-dim); font-family: var(--mono); }
+
+  /* ── READING ROW ── */
+  .reading-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    gap: 8px;
+  }
+  .reading-row:last-child { border-bottom: none; }
+  .reading-row .rk { color: var(--text-dim); flex: 1; }
+  .reading-row .rv { font-family: var(--mono); text-align: right; white-space: nowrap; }
+  .reading-row .ru { font-family: var(--mono); font-size: 10px; color: var(--text-faint); width: 72px; text-align: right; }
+  .reading-row .rs { font-size: 10px; font-family: var(--mono); padding: 1px 5px; border-radius: 2px; flex-shrink: 0; }
+  .rs.ok    { background: var(--green-bg); color: var(--green); }
+  .rs.stale { background: var(--amber-bg); color: var(--amber); }
+  .rs.miss  { background: var(--red-bg);   color: var(--red);   }
+
+  /* ── THRESHOLD TABLE ── */
+  .thresh-table { width: 100%; border-collapse: collapse; }
+  .thresh-table th {
+    padding: 5px 14px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .thresh-table td {
+    padding: 6px 14px;
+    font-size: 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .thresh-table tr:last-child td { border-bottom: none; }
+  .thresh-table td:nth-child(2),
+  .thresh-table td:nth-child(3) { font-family: var(--mono); text-align: right; }
+  .thresh-table td:last-child { text-align: center; }
+  .pass-badge { display: inline-block; padding: 1px 6px; border-radius: 2px; font-family: var(--mono); font-size: 10px; font-weight: 600; }
+  .pass-badge.pass { background: var(--green-bg); color: var(--green); }
+  .pass-badge.fail { background: var(--red-bg); color: var(--red); }
+  .pass-badge.warn { background: var(--amber-bg); color: var(--amber); }
+
+  /* ── FORM ── */
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .form-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .form-hint { font-size: 11px; color: var(--text-faint); }
+  .form-input {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 6px 10px;
+    outline: none;
+    transition: border-color 0.12s;
+    width: 100%;
+  }
+  .form-input:focus { border-color: var(--blue); }
+  .form-input.danger:focus { border-color: var(--red); }
+
+  .form-section {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  .checkbox-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .checkbox-row input[type=checkbox] {
+    margin-top: 2px;
+    accent-color: var(--blue);
+    width: 13px; height: 13px;
+    flex-shrink: 0;
+  }
+  .checkbox-row .cb-label { color: var(--text-dim); }
+  .checkbox-row .cb-label strong { color: var(--text); font-family: var(--mono); font-weight: 500; }
+
+  /* ── BUTTONS ── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 3px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    border: 1px solid;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+    text-decoration: none;
+  }
+  .btn-primary { background: var(--blue-dim); border-color: var(--blue); color: var(--blue); }
+  .btn-primary:hover { background: var(--blue); color: var(--bg); }
+  .btn-ghost   { background: transparent; border-color: var(--border); color: var(--text-dim); }
+  .btn-ghost:hover { border-color: var(--border-hi); color: var(--text); }
+  .btn-danger  { background: var(--red-bg); border-color: var(--red-dim); color: var(--red); }
+  .btn-danger:hover { background: var(--red); color: var(--bg); }
+  .btn-amber   { background: var(--amber-bg); border-color: var(--amber-dim); color: var(--amber); }
+
+  .btn-row { display: flex; gap: 8px; align-items: center; }
+
+  /* ── LOG ── */
+  .log-container {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-family: var(--mono);
+    font-size: 11px;
+    overflow-y: auto;
+    max-height: 280px;
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .log-line { display: flex; gap: 10px; line-height: 1.6; }
+  .log-line .ts { color: var(--text-faint); white-space: nowrap; flex-shrink: 0; }
+  .log-line .lvl { width: 36px; flex-shrink: 0; text-align: right; }
+  .log-line .msg { color: var(--text-dim); }
+  .log-line.info  .lvl { color: var(--blue); }
+  .log-line.warn  .lvl { color: var(--amber); }
+  .log-line.err   .lvl { color: var(--red); }
+  .log-line.ok    .lvl { color: var(--green); }
+
+  /* ── RAW PAYLOAD ── */
+  .raw-block {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 10px 12px;
+    color: var(--text-dim);
+    overflow-x: auto;
+    white-space: pre;
+    max-height: 220px;
+    overflow-y: auto;
+    line-height: 1.6;
+  }
+
+  /* ── ENDPOINT LINKS ── */
+  .endpoint-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .endpoint-row:last-child { border-bottom: none; }
+  .endpoint-row .path { font-family: var(--mono); color: var(--blue); flex: 1; }
+  .endpoint-row .desc { color: var(--text-dim); font-size: 11px; }
+  .copy-btn {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-faint);
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 2px 6px;
+    cursor: pointer;
+    transition: color 0.1s, border-color 0.1s;
+  }
+  .copy-btn:hover { color: var(--text); border-color: var(--border-hi); }
+  .copy-btn.copied { color: var(--green); border-color: var(--green-dim); }
+
+  /* ── POLL STATUS BAR ── */
+  .poll-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .poll-bar .ts { color: var(--text-faint); }
+
+  /* ── FILTER BAR ── */
+  .filter-bar {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .filter-chip {
+    padding: 3px 9px;
+    border-radius: 2px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    background: transparent;
+    transition: all 0.1s;
+  }
+  .filter-chip:hover { border-color: var(--border-hi); color: var(--text); }
+  .filter-chip.active { border-color: var(--blue); color: var(--blue); background: var(--blue-dim); }
+
+  /* ── RULE LIST ── */
+  .rule-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .rule-row:last-child { border-bottom: none; }
+  .rule-row .rname { flex: 1; color: var(--text); font-family: var(--mono); font-size: 11px; }
+  .rule-row .rdesc { font-size: 11px; color: var(--text-dim); }
+
+  /* toggle */
+  .toggle {
+    position: relative;
+    width: 30px;
+    height: 16px;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-track {
+    position: absolute;
+    inset: 0;
+    border-radius: 8px;
+    background: var(--border);
+    transition: background 0.15s;
+  }
+  .toggle input:checked + .toggle-track { background: var(--green-dim); }
+  .toggle-thumb {
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: transform 0.15s, background 0.15s;
+  }
+  .toggle input:checked ~ .toggle-thumb { transform: translateX(14px); background: var(--green); }
+
+  /* ── TABS ── */
+  .tab-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
+  }
+  .tab {
+    padding: 8px 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.12s, border-color 0.12s;
+    user-select: none;
+  }
+  .tab:hover { color: var(--text-dim); }
+  .tab.active { color: var(--text); border-bottom-color: var(--blue); }
+
+  /* ── SAVE NOTICE ── */
+  .save-notice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--green-bg);
+    border: 1px solid var(--green-dim);
+    border-radius: 3px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--green);
+  }
+
+  /* ── OVERVIEW COMPACT STATUS ── */
+  .overview-status-bar {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+  }
+  .status-tile {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .status-tile .stk { font-size: 10px; font-family: var(--mono); color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.07em; }
+  .status-tile .stv { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 12px; font-weight: 600; }
+
+  /* ── DEVIDER ── */
+  .divider { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useCallback, useRef } = React;
+
+// ── Mock Data ─────────────────────────────────────────────────────────────────
+const MOCK = {
+  bridge: {
+    version: 'v0.2.0-alpha.2',
+    port: 11111,
+    uptime: '14h 32m',
+    bind: '0.0.0.0',
+    networkExposed: true,
+  },
+  sqmeter: {
+    url: 'http://192.168.1.128',
+    connected: true,
+    lastPoll: '2026-05-04 14:28:12 UTC',
+    lastSuccess: '2026-05-04 14:28:12 UTC',
+    dataAge: '3s',
+    pollInterval: 5,
+    staleAfter: 30,
+    timeout: 8,
+  },
+  alpaca: {
+    discoveryRunning: true,
+    discoveryPort: 32227,
+    devices: [
+      { type: 'ObservingConditions', id: 0, name: 'SQMeter ObservingConditions' },
+      { type: 'SafetyMonitor',       id: 0, name: 'SQMeter SafetyMonitor' },
+    ],
+  },
+  safety: {
+    safe: true,
+    override: 'auto',
+    lastEval: '2026-05-04 14:28:12 UTC',
+    failClosed: true,
+    reason: null,
+    rules: [
+      { id: 'cloud_unsafe',    label: 'Cloud cover > unsafe threshold', threshold: '80%',     current: '42.3%', pass: true,  enabled: true },
+      { id: 'cloud_caution',   label: 'Cloud cover > caution threshold', threshold: '50%',    current: '42.3%', pass: true,  enabled: true },
+      { id: 'light_sensor',    label: 'Light sensor status OK',          threshold: 'status=0', current: 'OK',  pass: true,  enabled: true },
+      { id: 'env_sensor',      label: 'Environment sensor status OK',    threshold: 'status=0', current: 'OK',  pass: true,  enabled: true },
+      { id: 'ir_sensor',       label: 'IR temperature sensor status OK', threshold: 'status=0', current: 'OK',  pass: true,  enabled: true },
+      { id: 'sqm_limit',       label: 'SQM > hard lower limit',          threshold: '> 5.0',   current: '10.1', pass: true, enabled: false },
+    ],
+  },
+  conditions: [
+    { alpaca: 'CloudCover',         sqm: 'cloud_cover',     value: 42.3,  unit: '%',             status: 'ok',    desc: 'Estimated cloud cover' },
+    { alpaca: 'SkyQuality',         sqm: 'sqm',             value: 10.1,  unit: 'mag/arcsec²',   status: 'ok',    desc: 'Sky brightness (SQM)' },
+    { alpaca: 'SkyBrightness',      sqm: 'sqm',             value: 10.1,  unit: 'lux',           status: 'ok',    desc: 'Sky brightness (lux)' },
+    { alpaca: 'Temperature',        sqm: 'temperature',     value: 19.9,  unit: '°C',            status: 'ok',    desc: 'Ambient temperature' },
+    { alpaca: 'Humidity',           sqm: 'humidity',        value: 52.3,  unit: '%',             status: 'ok',    desc: 'Relative humidity' },
+    { alpaca: 'DewPoint',           sqm: 'dew_point',       value: 9.8,   unit: '°C',            status: 'ok',    desc: 'Calculated dew point' },
+    { alpaca: 'WindSpeed',          sqm: null,              value: null,  unit: 'm/s',           status: 'miss',  desc: 'Not provided by SQMeter' },
+    { alpaca: 'Pressure',           sqm: null,              value: null,  unit: 'hPa',           status: 'miss',  desc: 'Not provided by SQMeter' },
+    { alpaca: 'RainRate',           sqm: null,              value: null,  unit: 'mm/h',          status: 'miss',  desc: 'Not provided by SQMeter' },
+    { alpaca: 'StarFWHM',           sqm: null,              value: null,  unit: 'arcsec',        status: 'miss',  desc: 'Not provided by SQMeter' },
+    { alpaca: 'SkyTemperature',     sqm: 'ir_sky_temp',     value: -8.4,  unit: '°C',            status: 'ok',    desc: 'IR sky temperature' },
+    { alpaca: 'WindDirection',      sqm: null,              value: null,  unit: '°',             status: 'miss',  desc: 'Not provided by SQMeter' },
+  ],
+  logs: [
+    { ts: '14:28:12', level: 'ok',   msg: 'Poll OK — SQMeter responded in 84ms' },
+    { ts: '14:28:07', level: 'info', msg: 'Safety evaluation: SAFE (all rules pass)' },
+    { ts: '14:28:07', level: 'ok',   msg: 'Poll OK — SQMeter responded in 91ms' },
+    { ts: '14:28:02', level: 'ok',   msg: 'Poll OK — SQMeter responded in 88ms' },
+    { ts: '14:27:57', level: 'ok',   msg: 'Poll OK — SQMeter responded in 102ms' },
+    { ts: '14:27:52', level: 'warn', msg: 'Alpaca client connected from 192.168.1.55' },
+    { ts: '14:27:47', level: 'ok',   msg: 'Poll OK — SQMeter responded in 79ms' },
+    { ts: '14:27:10', level: 'info', msg: 'Discovery broadcast answered (192.168.1.55:51820)' },
+    { ts: '14:20:03', level: 'warn', msg: 'Poll timeout after 8000ms — retrying' },
+    { ts: '14:20:01', level: 'err',  msg: 'HTTP GET http://192.168.1.128/api/v1/readings: connection refused' },
+    { ts: '14:19:56', level: 'err',  msg: 'HTTP GET http://192.168.1.128/api/v1/readings: connection refused' },
+    { ts: '14:19:51', level: 'warn', msg: 'SQMeter unreachable — reporting UNSAFE (fail-closed)' },
+    { ts: '14:00:00', level: 'info', msg: 'Bridge started on 0.0.0.0:11111' },
+    { ts: '14:00:00', level: 'info', msg: 'Alpaca discovery listening on UDP :32227' },
+    { ts: '14:00:00', level: 'info', msg: 'Registered device: SafetyMonitor/0' },
+    { ts: '14:00:00', level: 'info', msg: 'Registered device: ObservingConditions/0' },
+  ],
+  rawPayload: `{
+  "timestamp": "2026-05-04T14:28:12Z",
+  "sqm": 10.10,
+  "bortle": 9.0,
+  "cloud_cover": 42.3,
+  "cloud_condition": "cloudy",
+  "temperature": 19.9,
+  "humidity": 52.3,
+  "dew_point": 9.8,
+  "dew_margin": 10.1,
+  "ir_sky_temp": -8.4,
+  "ir_sensor_temp": 18.5,
+  "ir_delta": -8.4,
+  "ir_corrected_delta": -8.8,
+  "light_sensor_status": 0,
+  "environment_status": 0,
+  "ir_sensor_status": 0
+}`,
+};
+
+// ── Icons ─────────────────────────────────────────────────────────────────────
+const Icon = ({ name, size = 14 }) => {
+  const s = { width: size, height: size, display: 'inline-block', flexShrink: 0 };
+  const icons = {
+    overview:   <svg viewBox="0 0 14 14" style={s} fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1" y="1" width="5" height="5" rx="0.5"/><rect x="8" y="1" width="5" height="5" rx="0.5"/><rect x="1" y="8" width="5" height="5" rx="0.5"/><rect x="8" y="8" width="5" height="5" rx="0.5"/></svg>,
+    config:     <svg viewBox="0 0 14 14" style={s} fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="2"/><path d="M7 1v1.5M7 11.5V13M1 7h1.5M11.5 7H13M2.6 2.6l1.1 1.1M10.3 10.3l1.1 1.1M11.4 2.6l-1.1 1.1M3.7 10.3l-1.1 1.1"/></svg>,
+    safety:     <svg viewBox="0 0 14 14" style={s} fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M7 1L2 3v4c0 2.8 2 5 5 6 3-1 5-3.2 5-6V3L7 1z"/></svg>,
+    conditions: <svg viewBox="0 0 14 14" style={s} fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 10 Q4 6 7 8 Q10 10 12 4"/><circle cx="7" cy="8" r="0.8" fill="currentColor"/></svg>,
+    logs:       <svg viewBox="0 0 14 14" style={s} fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 3h10M2 7h8M2 11h6"/></svg>,
+    copy:       <svg viewBox="0 0 14 14" style={s} fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="4" y="4" width="8" height="8" rx="0.5"/><path d="M2 10V2h8"/></svg>,
+    check:      <svg viewBox="0 0 14 14" style={s} fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 7l4 4 6-6"/></svg>,
+    warn:       <svg viewBox="0 0 14 14" style={s} fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M7 1L1 12h12L7 1z"/><path d="M7 5.5V8M7 10h.01"/></svg>,
+    plug:       <svg viewBox="0 0 14 14" style={s} fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M5 1v4M9 1v4M3 5h8v2a4 4 0 01-8 0V5z"/><path d="M7 11v2"/></svg>,
+  };
+  return icons[name] || null;
+};
+
+// ── Copy Button ───────────────────────────────────────────────────────────────
+const CopyBtn = ({ text }) => {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard?.writeText(text).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <button className={`copy-btn ${copied ? 'copied' : ''}`} onClick={copy}>
+      {copied ? 'copied' : 'copy'}
+    </button>
+  );
+};
+
+// ── Toggle ────────────────────────────────────────────────────────────────────
+const Toggle = ({ checked, onChange }) => (
+  <label className="toggle">
+    <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} />
+    <div className="toggle-track"></div>
+    <div className="toggle-thumb"></div>
+  </label>
+);
+
+// ── Overview ──────────────────────────────────────────────────────────────────
+const OverviewTab = ({ safe, connected, dataAge }) => {
+  const d = MOCK;
+  const sqmColor = connected ? 'var(--green)' : 'var(--red)';
+  const sqmDotCls = connected ? 'dot-green' : 'dot-red';
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Status tiles */}
+      <div className="overview-status-bar">
+        <div className="status-tile">
+          <div className="stk">Bridge</div>
+          <div className="stv"><span className="dot dot-green"></span><span className="green">Running</span></div>
+          <div style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--text-faint)' }}>port {d.bridge.port} · up {d.bridge.uptime}</div>
+        </div>
+        <div className="status-tile" style={{ borderColor: connected ? 'var(--border)' : 'var(--red-dim)', background: connected ? 'var(--bg-panel)' : 'var(--red-bg)' }}>
+          <div className="stk">SQMeter</div>
+          <div className="stv"><span className={`dot ${sqmDotCls}`}></span><span style={{ color: sqmColor }}>{connected ? 'Reachable' : 'Disconnected'}</span></div>
+          <div style={{ fontSize: 10, fontFamily: 'var(--mono)', color: connected ? 'var(--text-faint)' : 'var(--red-dim)' }}>
+            {connected ? `last poll ${dataAge} ago` : 'no data — fail-closed'}
+          </div>
+        </div>
+        <div className="status-tile">
+          <div className="stk">Discovery</div>
+          <div className="stv"><span className="dot dot-green"></span><span className="green">Running</span></div>
+          <div style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--text-faint)' }}>UDP :{d.alpaca.discoveryPort}</div>
+        </div>
+        <div className="status-tile">
+          <div className="stk">Devices</div>
+          <div className="stv" style={{ color: 'var(--blue)' }}>{d.alpaca.devices.length} exposed</div>
+          <div style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--text-faint)' }}>OC + SafetyMonitor</div>
+        </div>
+        <div className="status-tile" style={{ borderColor: safe ? 'var(--green-dim)' : 'var(--red-dim)', background: safe ? 'var(--green-bg)' : 'var(--red-bg)' }}>
+          <div className="stk">Safety Monitor</div>
+          <div className="stv" style={{ color: safe ? 'var(--green)' : 'var(--red)', fontSize: 15, fontWeight: 700 }}>
+            <span className={`dot ${safe ? 'dot-green' : 'dot-red'}`}></span>
+            {safe ? 'SAFE' : 'UNSAFE'}
+          </div>
+          <div style={{ fontSize: 10, fontFamily: 'var(--mono)', color: safe ? 'var(--green-dim)' : 'var(--red-dim)' }}>
+            {safe ? 'All rules pass' : (!connected ? 'SQMeter unreachable' : 'Cloud cover exceeds threshold')}
+          </div>
+        </div>
+      </div>
+
+      {/* Two-column: readings + bridge status */}
+      <div className="grid-2">
+        {/* Current readings */}
+        <div className="card">
+          <div className="card-head"><Icon name="conditions" /> Current Readings</div>
+          <div className="card-body tight">
+            {connected ? [
+              { k: 'SQM',            v: '10.10 mag/arcsec²' },
+              { k: 'Bortle class',   v: '9.0' },
+              { k: 'Cloud cover',    v: '42.3%', c: 'amber' },
+              { k: 'Cloud condition',v: 'cloudy', c: 'amber' },
+              { k: 'Temperature',    v: '19.9°C' },
+              { k: 'Humidity',       v: '52.3%' },
+              { k: 'Dew point',      v: '9.8°C' },
+              { k: 'Dew margin',     v: '+10.1°C', c: 'green' },
+              { k: 'IR sky temp',    v: '−8.4°C' },
+              { k: 'IR delta',       v: '−8.4°C' },
+            ].map(({ k, v, c }) => (
+              <div key={k} className="reading-row">
+                <span className="rk">{k}</span>
+                <span className={`rv ${c || ''}`}>{v}</span>
+              </div>
+            )) : (
+              <div style={{ padding: '24px 14px', textAlign: 'center', color: 'var(--text-faint)', fontFamily: 'var(--mono)', fontSize: 12 }}>
+                <div style={{ color: 'var(--red)', marginBottom: 6, fontSize: 13 }}>No data</div>
+                SQMeter unreachable — last successful poll<br />
+                <span style={{ color: 'var(--text-dim)' }}>14:20:01 UTC (8m 11s ago)</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Bridge + timing */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="card">
+            <div className="card-head"><Icon name="plug" /> Bridge Status</div>
+            <div className="card-body tight">
+              {[
+                { k: 'Version',      v: d.bridge.version },
+                { k: 'Bind address', v: `${d.bridge.bind}:${d.bridge.port}` },
+                { k: 'SQMeter URL',  v: d.sqmeter.url },
+                { k: 'Poll interval',v: `${d.sqmeter.pollInterval}s` },
+                { k: 'Stale after',  v: `${d.sqmeter.staleAfter}s` },
+                { k: 'Fail-closed',  v: 'yes', c: 'green' },
+                { k: 'Override',     v: 'auto', c: 'dim' },
+              ].map(({ k, v, c }) => (
+                <div key={k} className="reading-row">
+                  <span className="rk">{k}</span>
+                  <span className={`rv ${c || ''}`}>{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-head">Poll Timing</div>
+            <div className="card-body tight">
+              {[
+                { k: 'Last poll',    v: connected ? '14:28:12 UTC' : '14:28:12 UTC', c: connected ? '' : 'amber' },
+                { k: 'Last success', v: connected ? '14:28:12 UTC' : '14:20:01 UTC', c: connected ? '' : 'red' },
+                { k: 'Data age',     v: connected ? dataAge : '8m 11s',              c: connected ? '' : 'red' },
+                { k: 'Avg latency',  v: connected ? '88ms' : '—',                    c: '' },
+              ].map(({ k, v, c }) => (
+                <div key={k} className="reading-row">
+                  <span className="rk">{k}</span>
+                  <span className={`rv ${c}`}>{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-head">Alpaca Devices</div>
+            <div className="card-body tight">
+              {d.alpaca.devices.map(dev => (
+                <div key={dev.type} className="reading-row">
+                  <span className="rk">{dev.type}/{dev.id}</span>
+                  <span className="rv dim" style={{ fontSize: 11 }}>{dev.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Configuration ─────────────────────────────────────────────────────────────
+const ConfigTab = () => {
+  const [saved, setSaved] = useState(false);
+  const [url, setUrl] = useState('http://192.168.1.128');
+  const [bind, setBind] = useState('0.0.0.0');
+  const [port, setPort] = useState('11111');
+  const [pollInterval, setPollInterval] = useState('5');
+  const [staleAfter, setStaleAfter] = useState('30');
+  const [timeout, setTimeout] = useState('8');
+  const [failClosed, setFailClosed] = useState(true);
+  const [discovery, setDiscovery] = useState(true);
+  const [discoveryPort, setDiscoveryPort] = useState('32227');
+  const [ocName, setOcName] = useState('SQMeter ObservingConditions');
+  const [smName, setSmName] = useState('SQMeter SafetyMonitor');
+
+  const networkDanger = bind === '0.0.0.0' || bind === '';
+
+  const save = () => {
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {networkDanger && (
+        <div className="warn-banner" style={{ borderRadius: 4, borderBottom: '1px solid var(--amber-dim)', borderTop: '1px solid var(--amber-dim)', borderLeft: '1px solid var(--amber-dim)', borderRight: '1px solid var(--amber-dim)', padding: '8px 12px' }}>
+          <Icon name="warn" size={13} />
+          Service is reachable from the network (ALPACA_HTTP_BIND=0.0.0.0). Do not expose this port to the internet.
+        </div>
+      )}
+
+      {saved && (
+        <div className="save-notice">
+          <Icon name="check" size={13} /> Configuration saved and applied.
+        </div>
+      )}
+
+      {/* SQMeter Connection */}
+      <div className="card">
+        <div className="card-head"><Icon name="plug" /> SQMeter Connection</div>
+        <div className="card-body">
+          <div className="form-section">
+            <div className="form-group">
+              <div className="form-label">SQMETER_BASE_URL</div>
+              <input className="form-input" value={url} onChange={e => setUrl(e.target.value)} />
+              <div className="form-hint">Base URL of your SQMeter device. Applied immediately.</div>
+            </div>
+            <div>
+              <button className="btn btn-ghost">Test connection</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* HTTP & Discovery */}
+      <div className="card">
+        <div className="card-head">HTTP Bind & Alpaca Discovery</div>
+        <div className="card-body">
+          <div className="form-section">
+            <div className="form-row">
+              <div className="form-group">
+                <div className="form-label">ALPACA_HTTP_BIND</div>
+                <input className={`form-input ${networkDanger ? 'danger' : ''}`} value={bind} onChange={e => setBind(e.target.value)} />
+                <div className="form-hint">IP to bind the HTTP server. Use 127.0.0.1 for local-only.</div>
+              </div>
+              <div className="form-group">
+                <div className="form-label">ALPACA_PORT</div>
+                <input className="form-input" value={port} onChange={e => setPort(e.target.value)} />
+                <div className="form-hint">HTTP port for Alpaca endpoints.</div>
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <div className="form-label">ALPACA_DISCOVERY_ENABLED</div>
+                <label className="checkbox-row">
+                  <input type="checkbox" checked={discovery} onChange={e => setDiscovery(e.target.checked)} />
+                  <span className="cb-label">Enable Alpaca UDP discovery broadcast</span>
+                </label>
+              </div>
+              <div className="form-group">
+                <div className="form-label">ALPACA_DISCOVERY_PORT</div>
+                <input className="form-input" value={discoveryPort} onChange={e => setDiscoveryPort(e.target.value)} disabled={!discovery} style={{ opacity: discovery ? 1 : 0.4 }} />
+                <div className="form-hint">UDP port for Alpaca discovery (default 32227).</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Polling */}
+      <div className="card">
+        <div className="card-head">Polling</div>
+        <div className="card-body">
+          <div className="form-section">
+            <div className="form-row">
+              <div className="form-group">
+                <div className="form-label">POLL_INTERVAL_SECONDS</div>
+                <input className="form-input" value={pollInterval} onChange={e => setPollInterval(e.target.value)} />
+                <div className="form-hint">How often to poll the SQMeter (seconds).</div>
+              </div>
+              <div className="form-group">
+                <div className="form-label">STALE_AFTER_SECONDS</div>
+                <input className="form-input" value={staleAfter} onChange={e => setStaleAfter(e.target.value)} />
+                <div className="form-hint">Report unsafe if data is older than this.</div>
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <div className="form-label">HTTP_TIMEOUT_SECONDS</div>
+                <input className="form-input" value={timeout} onChange={e => setTimeout(e.target.value)} />
+                <div className="form-hint">Per-poll HTTP timeout.</div>
+              </div>
+              <div></div>
+            </div>
+            <label className="checkbox-row">
+              <input type="checkbox" checked={failClosed} onChange={e => setFailClosed(e.target.checked)} />
+              <span className="cb-label"><strong>FAIL_CLOSED</strong> — report <strong style={{ color: 'var(--red)' }}>unsafe</strong> when SQMeter is unreachable or data is stale</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {/* Device Names */}
+      <div className="card">
+        <div className="card-head">Device Names</div>
+        <div className="card-body">
+          <div className="form-section">
+            <div className="form-group">
+              <div className="form-label">ObservingConditions name</div>
+              <input className="form-input" value={ocName} onChange={e => setOcName(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <div className="form-label">SafetyMonitor name</div>
+              <input className="form-input" value={smName} onChange={e => setSmName(e.target.value)} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Save */}
+      <div className="btn-row">
+        <button className="btn btn-primary" onClick={save}>Save &amp; apply</button>
+        <button className="btn btn-ghost">Reset to defaults</button>
+        <span className="dim" style={{ fontSize: 11, fontFamily: 'var(--mono)' }}>Changes apply immediately without restart.</span>
+      </div>
+    </div>
+  );
+};
+
+// ── Safety Monitor ────────────────────────────────────────────────────────────
+const SafetyTab = ({ safe, connected }) => {
+  const [rules, setRules] = useState(MOCK.safety.rules);
+
+  const toggleRule = (id) => {
+    setRules(r => r.map(rule => rule.id === id ? { ...rule, enabled: !rule.enabled } : rule));
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* State header */}
+      <div className="card">
+        <div className="card-body">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div className={`safety-badge ${safe ? 'safe' : 'unsafe'}`} style={{ fontSize: 18, padding: '10px 18px', gap: 12 }}>
+              <span className={`dot ${safe ? 'dot-green' : 'dot-red'}`} style={{ width: 10, height: 10 }}></span>
+              {safe ? 'SAFE' : 'UNSAFE'}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 4 }}>
+                {safe
+                  ? 'All enabled safety rules pass.'
+                  : !connected
+                    ? 'SQMeter unreachable — reporting UNSAFE (fail-closed).'
+                    : 'Cloud cover exceeds unsafe threshold (42.3% > configured limit).'}
+              </div>
+              <div style={{ display: 'flex', gap: 16, fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-faint)' }}>
+                <span>Last evaluation: {MOCK.safety.lastEval}</span>
+                <span>Override: {MOCK.safety.override}</span>
+                <span>Fail-closed: {MOCK.safety.failClosed ? <span className="green">yes</span> : <span className="red">no</span>}</span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-amber">Force safe</button>
+              <button className="btn btn-danger">Force unsafe</button>
+              <button className="btn btn-ghost">Clear override</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Rules table */}
+      <div className="card">
+        <div className="card-head"><Icon name="safety" /> Safety Rules</div>
+        <div className="card-body tight">
+          <table className="thresh-table">
+            <thead>
+              <tr>
+                <th>Rule</th>
+                <th>Threshold</th>
+                <th>Current value</th>
+                <th style={{ textAlign: 'center', width: 60 }}>Result</th>
+                <th style={{ textAlign: 'center', width: 60 }}>Enabled</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rules.map(r => (
+                <tr key={r.id} style={{ opacity: r.enabled ? 1 : 0.4 }}>
+                  <td style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-dim)' }}>{r.label}</td>
+                  <td>{r.threshold}</td>
+                  <td style={{ color: r.pass ? 'var(--green)' : 'var(--red)' }}>{r.current}</td>
+                  <td style={{ textAlign: 'center' }}>
+                    {r.enabled
+                      ? <span className={`pass-badge ${r.pass ? 'pass' : 'fail'}`}>{r.pass ? 'PASS' : 'FAIL'}</span>
+                      : <span className="pass-badge" style={{ color: 'var(--text-faint)', background: 'transparent', border: '1px solid var(--border)' }}>OFF</span>
+                    }
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    <Toggle checked={r.enabled} onChange={() => toggleRule(r.id)} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Threshold configuration */}
+      <div className="card">
+        <div className="card-head">Cloud Cover Thresholds</div>
+        <div className="card-body">
+          <div className="form-section">
+            <div className="form-row">
+              <div className="form-group">
+                <div className="form-label">CLOUD_COVER_UNSAFE_PERCENT</div>
+                <input className="form-input danger" defaultValue="80.0" />
+                <div className="form-hint">Cloud cover % that triggers <span className="red">UNSAFE</span>. Applied immediately.</div>
+              </div>
+              <div className="form-group">
+                <div className="form-label">CLOUD_COVER_CAUTION_PERCENT</div>
+                <input className="form-input" defaultValue="50.0" />
+                <div className="form-hint">Cloud cover % that triggers a caution warning.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Sensor health */}
+      <div className="card">
+        <div className="card-head">Sensor Health Requirements</div>
+        <div className="card-body">
+          <div style={{ fontSize: 11, color: 'var(--text-faint)', marginBottom: 10, fontFamily: 'var(--mono)' }}>
+            When checked, a non-zero sensor status code (not-found, read error, stale) causes <span className="red">UNSAFE</span>.
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {['REQUIRE_LIGHT_SENSOR_STATUS_OK', 'REQUIRE_ENVIRONMENT_STATUS_OK', 'REQUIRE_IR_TEMPERATURE_STATUS_OK'].map(k => (
+              <label key={k} className="checkbox-row">
+                <input type="checkbox" defaultChecked />
+                <span className="cb-label"><strong>{k}</strong></span>
+              </label>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="btn-row">
+        <button className="btn btn-primary">Save thresholds</button>
+        <span className="dim" style={{ fontSize: 11, fontFamily: 'var(--mono)' }}>Threshold changes affect equipment safety — review carefully.</span>
+      </div>
+    </div>
+  );
+};
+
+// ── Observing Conditions ──────────────────────────────────────────────────────
+const ConditionsTab = () => {
+  const [filter, setFilter] = useState('all');
+  const conditions = MOCK.conditions.filter(c => {
+    if (filter === 'available') return c.status === 'ok';
+    if (filter === 'missing')   return c.status === 'miss';
+    return true;
+  });
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="filter-bar">
+          {['all', 'available', 'missing'].map(f => (
+            <button key={f} className={`filter-chip ${filter === f ? 'active' : ''}`} onClick={() => setFilter(f)}>
+              {f}
+            </button>
+          ))}
+        </div>
+        <div className="poll-bar" style={{ marginLeft: 'auto' }}>
+          <span className="dot dot-green"></span>
+          <span>Data age: 3s</span>
+          <span className="ts">· last poll 14:28:12 UTC</span>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-head">
+          <Icon name="conditions" /> Alpaca ObservingConditions values
+          <span style={{ marginLeft: 'auto', fontFamily: 'var(--sans)', fontWeight: 400, fontSize: 11, color: 'var(--text-faint)' }}>
+            {conditions.filter(c => c.status === 'ok').length} of {MOCK.conditions.length} properties available
+          </span>
+        </div>
+        <div className="card-body tight">
+          <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr 100px 80px 70px', borderBottom: '1px solid var(--border)' }}>
+            {['Alpaca property', 'SQMeter field', 'Value', 'Unit', 'Status'].map((h, i) => (
+              <div key={h} style={{ padding: '5px 14px', fontFamily: 'var(--mono)', fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-faint)', textAlign: i >= 3 ? 'right' : 'left' }}>{h}</div>
+            ))}
+          </div>
+          {conditions.map(c => (
+            <div key={c.alpaca} style={{ display: 'grid', gridTemplateColumns: '160px 1fr 100px 80px 70px', borderBottom: '1px solid var(--border)', alignItems: 'center', opacity: c.status === 'miss' ? 0.5 : 1 }}>
+              <div style={{ padding: '6px 14px', fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--blue)' }}>{c.alpaca}</div>
+              <div style={{ padding: '6px 14px', fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-dim)' }}>{c.sqm || '—'}</div>
+              <div style={{ padding: '6px 14px', fontFamily: 'var(--mono)', fontSize: 12, textAlign: 'right', color: c.value !== null ? 'var(--text)' : 'var(--text-faint)' }}>
+                {c.value !== null ? c.value : '—'}
+              </div>
+              <div style={{ padding: '6px 14px', fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-faint)', textAlign: 'right' }}>{c.unit}</div>
+              <div style={{ padding: '6px 14px', textAlign: 'right' }}>
+                <span className={`rs ${c.status}`}>{c.status === 'ok' ? 'ok' : c.status === 'stale' ? 'stale' : 'n/a'}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Diagnostics / Logs ────────────────────────────────────────────────────────
+const DiagnosticsTab = () => {
+  const [logFilter, setLogFilter] = useState('all');
+  const [activeTab, setActiveTab] = useState('logs');
+
+  const logs = MOCK.logs.filter(l => logFilter === 'all' || l.level === logFilter);
+
+  const BASE = 'http://localhost:11111';
+  const endpoints = [
+    { path: '/apiversions',                          desc: 'Supported Alpaca API versions' },
+    { path: '/configureddevices',                     desc: 'Registered Alpaca devices' },
+    { path: '/api/v1/safetymonitor/0/issafe',        desc: 'Safety Monitor — is safe?' },
+    { path: '/api/v1/observingconditions/0/cloudcover', desc: 'Cloud cover value' },
+    { path: '/api/v1/observingconditions/0/skyquality', desc: 'Sky quality (SQM) value' },
+    { path: '/status.json',                           desc: 'Full bridge status JSON' },
+    { path: '/health',                                desc: 'Health check endpoint' },
+    { path: '/setup',                                 desc: 'Configuration page' },
+  ];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="tab-bar">
+        {[['logs', 'Logs'], ['raw', 'Raw Payload'], ['endpoints', 'Endpoints'], ['discovery', 'Discovery']].map(([id, label]) => (
+          <div key={id} className={`tab ${activeTab === id ? 'active' : ''}`} onClick={() => setActiveTab(id)}>{label}</div>
+        ))}
+      </div>
+
+      {activeTab === 'logs' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div className="filter-bar">
+              {['all', 'err', 'warn', 'info', 'ok'].map(f => (
+                <button key={f} className={`filter-chip ${logFilter === f ? 'active' : ''}`} onClick={() => setLogFilter(f)}>{f}</button>
+              ))}
+            </div>
+            <button className="btn btn-ghost" style={{ marginLeft: 'auto', fontSize: 10, padding: '3px 10px' }}>Clear</button>
+          </div>
+          <div className="log-container">
+            {logs.map((l, i) => (
+              <div key={i} className={`log-line ${l.level}`}>
+                <span className="ts">{l.ts}</span>
+                <span className="lvl">{l.level.toUpperCase()}</span>
+                <span className="msg">{l.msg}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--text-faint)' }}>
+            Showing {logs.length} of {MOCK.logs.length} entries · refreshes every 5s
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'raw' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div className="poll-bar">
+              <span className="dot dot-green"></span>
+              <span>Last successful response</span>
+              <span className="ts">· 2026-05-04 14:28:12 UTC · 84ms</span>
+            </div>
+            <CopyBtn text={MOCK.rawPayload} />
+          </div>
+          <div className="raw-block">{MOCK.rawPayload}</div>
+          <div style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--text-faint)' }}>
+            Source: GET {MOCK.sqmeter.url}/api/v1/readings
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'endpoints' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-faint)', fontFamily: 'var(--mono)' }}>
+            Base: <span style={{ color: 'var(--blue)' }}>{BASE}</span>
+          </div>
+          <div className="card">
+            <div className="card-body tight">
+              {endpoints.map(ep => (
+                <div key={ep.path} className="endpoint-row">
+                  <span className="path">{ep.path}</span>
+                  <span className="desc">{ep.desc}</span>
+                  <CopyBtn text={BASE + ep.path} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'discovery' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="card">
+            <div className="card-head">Alpaca Discovery Status</div>
+            <div className="card-body tight">
+              {[
+                { k: 'Status',           v: 'Running', c: 'green' },
+                { k: 'UDP port',         v: '32227' },
+                { k: 'Last broadcast',   v: '14:28:12 UTC' },
+                { k: 'Last client',      v: '192.168.1.55:51820 (14:27:10 UTC)' },
+                { k: 'Clients answered', v: '3 this session' },
+              ].map(({ k, v, c }) => (
+                <div key={k} className="reading-row">
+                  <span className="rk">{k}</span>
+                  <span className={`rv ${c || ''}`}>{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="card">
+            <div className="card-head">Discovery Payload</div>
+            <div className="card-body">
+              <div className="raw-block">{`{
+  "AlpacaPort": 11111
+}`}</div>
+              <div style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--text-faint)', marginTop: 8 }}>
+                Sent in response to UDP AlpacaDiscovery packets on port 32227.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── App ───────────────────────────────────────────────────────────────────────
+const TABS = [
+  { id: 'overview',    label: 'Overview',             icon: 'overview'    },
+  { id: 'config',      label: 'Configuration',         icon: 'config'      },
+  { id: 'safety',      label: 'Safety Monitor',        icon: 'safety'      },
+  { id: 'conditions',  label: 'Observing Conditions',  icon: 'conditions'  },
+  { id: 'diagnostics', label: 'Diagnostics',           icon: 'logs'        },
+];
+
+const App = () => {
+  const [tab, setTab]               = useState('overview');
+  const [safe, setSafe]             = useState(true);
+  const [connected, setConnected]   = useState(true);
+  const [networkWarn, setNetworkWarn] = useState(true);
+  const dataAge = connected ? '3s' : '8m 11s';
+
+  // Listen for tweaks messages from the panel
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.data && e.data.type === '__tweaks_update') {
+        const { key, value } = e.data;
+        if (key === 'safeState')        setSafe(value === 'safe');
+        if (key === 'sqmeterConnected') { setConnected(value); if (!value) setSafe(false); }
+        if (key === 'networkWarning')   setNetworkWarn(value);
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  const content = {
+    overview:    <OverviewTab safe={safe} connected={connected} dataAge={dataAge} />,
+    config:      <ConfigTab />,
+    safety:      <SafetyTab safe={safe} connected={connected} />,
+    conditions:  <ConditionsTab />,
+    diagnostics: <DiagnosticsTab />,
+  };
+
+  const sqmDotCls = connected ? 'dot-green' : 'dot-red';
+
+  return (
+    <div id="app" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {/* Header */}
+      <div className="app-header">
+        <div className="brand">ASCOM SQMeter <span>Bridge</span></div>
+        <div className="meta">
+          <span>Alpaca bridge</span>
+          <span className="sep">·</span>
+          <span>port 11111</span>
+          <span className="sep">·</span>
+          <span>up 14h 32m</span>
+        </div>
+        <div className="spacer"></div>
+        <div className="header-badge">
+          <span className={`dot ${sqmDotCls}`}></span>
+          <span style={{ color: 'var(--text-dim)' }}>SQMeter</span>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: connected ? 'var(--text)' : 'var(--red)' }}>
+            {connected ? 'http://192.168.1.128' : 'unreachable'}
+          </span>
+        </div>
+        <div className="header-badge">
+          <span className="dot dot-green"></span>
+          <span style={{ color: 'var(--text-dim)' }}>Discovery</span>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>UDP :32227</span>
+        </div>
+        <div className="header-badge" style={{ color: 'var(--text-dim)', fontSize: 11 }}>
+          v0.2.0-alpha.2
+        </div>
+      </div>
+
+      {/* Network warning banner */}
+      {networkWarn && (
+        <div className="warn-banner">
+          <Icon name="warn" size={12} />
+          Service is reachable from the network (ALPACA_HTTP_BIND=0.0.0.0). Do not expose this port to the internet.
+          <a onClick={() => setTab('config')} style={{ marginLeft: 4 }}>[Setup]</a>
+        </div>
+      )}
+
+      {/* Body */}
+      <div className="app-body">
+        {/* Sidebar */}
+        <div className="sidebar">
+          {/* Safety status */}
+          <div className="sidebar-status">
+            <div className="label">Safety Monitor</div>
+            <div className={`safety-badge ${safe ? 'safe' : 'unsafe'}`}>
+              <span className={`dot ${safe ? 'dot-green' : 'dot-red'}`}></span>
+              {safe ? 'SAFE' : 'UNSAFE'}
+            </div>
+            {!safe && (
+              <div style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--red)', lineHeight: 1.4, paddingTop: 2 }}>
+                {!connected ? 'SQMeter unreachable' : 'Cloud cover exceeds threshold'}
+              </div>
+            )}
+            <div className="status-row">
+              <span className="k">Override</span>
+              <span className="v dim">auto</span>
+            </div>
+            <div className="status-row">
+              <span className="k">Last eval</span>
+              <span className="v faint">14:28:12</span>
+            </div>
+            <hr className="divider" />
+            <div className="status-row">
+              <span className="k">SQMeter</span>
+              <span className="v" style={{ color: connected ? 'var(--green)' : 'var(--red)' }}>
+                {connected ? 'connected' : 'unreachable'}
+              </span>
+            </div>
+            <div className="status-row">
+              <span className="k">Data age</span>
+              <span className="v" style={{ color: connected ? 'var(--text)' : 'var(--red)' }}>{dataAge}</span>
+            </div>
+          </div>
+
+          {/* Nav */}
+          <nav className="sidebar-nav">
+            {TABS.map(t => (
+              <div
+                key={t.id}
+                className={`nav-item ${tab === t.id ? 'active' : ''}`}
+                onClick={() => setTab(t.id)}
+              >
+                <span className="nav-icon"><Icon name={t.icon} /></span>
+                {t.label}
+              </div>
+            ))}
+          </nav>
+
+          {/* Footer */}
+          <div className="sidebar-footer">
+            <div>port 11111 · 0.0.0.0</div>
+            <div><a href="#">/status.json</a> · <a href="#">/health</a></div>
+            <div><a href="#">/apiversions</a></div>
+          </div>
+        </div>
+
+        {/* Main */}
+        <div className="main">
+          <div className="section-title">{TABS.find(t => t.id === tab)?.label}</div>
+          {content[tab]}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel">
+// ── Tweaks Panel ──────────────────────────────────────────────────────────────
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "safeState": "safe",
+  "sqmeterConnected": true,
+  "networkWarning": true
+}/*EDITMODE-END*/;
+
+const { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakToggle } = window;
+
+// Bridge from tweaks state → App state via postMessage
+const broadcastTweak = (key, value) => {
+  window.dispatchEvent(new MessageEvent('message', { data: { type: '__tweaks_update', key, value } }));
+};
+
+const TweaksApp = () => {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  const handleSafeState = (val) => {
+    setTweak('safeState', val);
+    broadcastTweak('safeState', val);
+  };
+  const handleConnected = (val) => {
+    setTweak('sqmeterConnected', val);
+    broadcastTweak('sqmeterConnected', val);
+    // disconnected forces unsafe
+    if (!val) {
+      setTweak('safeState', 'unsafe');
+      broadcastTweak('safeState', 'unsafe');
+    }
+  };
+  const handleNetworkWarn = (val) => {
+    setTweak('networkWarning', val);
+    broadcastTweak('networkWarning', val);
+  };
+
+  return (
+    <TweaksPanel>
+      <TweakSection title="Safety State">
+        <TweakRadio
+          id="safeState"
+          label="Safety Monitor"
+          options={['safe', 'unsafe']}
+          tweaks={tweaks}
+          setTweak={(id, val) => handleSafeState(val)}
+        />
+      </TweakSection>
+      <TweakSection title="Connection">
+        <TweakToggle
+          id="sqmeterConnected"
+          label="SQMeter reachable"
+          tweaks={tweaks}
+          setTweak={(id, val) => handleConnected(val)}
+        />
+        <TweakToggle
+          id="networkWarning"
+          label="Network exposure warning"
+          tweaks={tweaks}
+          setTweak={(id, val) => handleNetworkWarn(val)}
+        />
+      </TweakSection>
+    </TweaksPanel>
+  );
+};
+
+const tweaksRoot = document.createElement('div');
+document.body.appendChild(tweaksRoot);
+ReactDOM.createRoot(tweaksRoot).render(<TweaksApp />);
+</script>
+</body>
+</html>

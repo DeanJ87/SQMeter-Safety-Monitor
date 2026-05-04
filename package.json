@@ -1,0 +1,12 @@
+{
+  "scripts": {
+    "build:css": "tailwindcss -i ./internal/web/assets/input.css -o ./internal/web/static/app.css --minify",
+    "copy:fonts": "node scripts/copy-web-assets.mjs",
+    "build:assets": "npm run copy:fonts && npm run build:css"
+  },
+  "devDependencies": {
+    "@ibm/plex": "^6.4.1",
+    "@tailwindcss/cli": "^4.1.16",
+    "tailwindcss": "^4.1.16"
+  }
+}

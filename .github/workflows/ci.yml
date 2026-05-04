@@ -24,6 +24,15 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Build web assets
+        run: npm ci && npm run build:assets
+
       - name: Verify modules
         run: go mod tidy && git diff --exit-code go.sum
 
@@ -84,6 +93,15 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Build web assets
+        run: npm ci && npm run build:assets
+
       - name: Build Windows amd64
         run: |
           GOOS=windows GOARCH=amd64 go build \
@@ -117,6 +135,15 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Build web assets
+        run: npm ci && npm run build:assets
 
       - name: Test on Windows
         run: go test ./...
@@ -162,6 +189,15 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Build web assets
+        run: npm ci && npm run build:assets
 
       - name: Build service
         run: |
