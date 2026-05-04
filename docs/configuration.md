@@ -125,7 +125,7 @@ the bridge reports UNSAFE. The reason is displayed in the web UI and in
 Run the diagnostics command while the service is running:
 
 ```cmd
-sqmeter-alpaca-safetymonitor.exe --diagnostics
+sqmeter-ascom-alpaca.exe --diagnostics
 ```
 
 This queries `GET /api/diagnostics` on the running service and prints a

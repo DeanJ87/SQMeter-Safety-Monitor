@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"sqmeter-alpaca-safetymonitor/internal/config"
+	"sqmeter-ascom-alpaca/internal/config"
 )
 
 func TestDefaults(t *testing.T) {

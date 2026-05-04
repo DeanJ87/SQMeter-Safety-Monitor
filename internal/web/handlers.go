@@ -11,10 +11,10 @@ import (
 	"strconv"
 	"time"
 
-	"sqmeter-alpaca-safetymonitor/internal/alpaca"
-	"sqmeter-alpaca-safetymonitor/internal/config"
-	"sqmeter-alpaca-safetymonitor/internal/discovery"
-	"sqmeter-alpaca-safetymonitor/internal/state"
+	"sqmeter-ascom-alpaca/internal/alpaca"
+	"sqmeter-ascom-alpaca/internal/config"
+	"sqmeter-ascom-alpaca/internal/discovery"
+	"sqmeter-ascom-alpaca/internal/state"
 )
 
 // Handler serves the local web dashboard, setup page, and utility endpoints.

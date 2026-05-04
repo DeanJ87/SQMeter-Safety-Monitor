@@ -10,11 +10,11 @@ manually with the CLI flags below.
 
 | Property | Value |
 |----------|-------|
-| Service name | `SQMeterAlpacaSafetyMonitor` |
-| Display name | `SQMeter Alpaca SafetyMonitor` |
+| Service name | `SQMeterASCOMAlpaca` |
+| Display name | `SQMeter ASCOM Alpaca` |
 | Startup type | Automatic (set by installer) |
 | Config / data directory | `%ProgramData%\SQMeter SafetyMonitor\` |
-| Install directory | `%ProgramFiles%\SQMeter Alpaca SafetyMonitor\` (default) |
+| Install directory | `%ProgramFiles%\SQMeter ASCOM Alpaca\` (default) |
 
 ---
 
@@ -23,11 +23,11 @@ manually with the CLI flags below.
 Run these as Administrator from a Command Prompt or PowerShell:
 
 ```cmd
-sqmeter-alpaca-safetymonitor.exe --service install
-sqmeter-alpaca-safetymonitor.exe --service start
-sqmeter-alpaca-safetymonitor.exe --service stop
-sqmeter-alpaca-safetymonitor.exe --service status
-sqmeter-alpaca-safetymonitor.exe --service uninstall
+sqmeter-ascom-alpaca.exe --service install
+sqmeter-ascom-alpaca.exe --service start
+sqmeter-ascom-alpaca.exe --service stop
+sqmeter-ascom-alpaca.exe --service status
+sqmeter-ascom-alpaca.exe --service uninstall
 ```
 
 The Windows installer handles `install`, `start`, `stop`, and `uninstall`
@@ -65,7 +65,7 @@ warning next to these controls.
 If you prefer NSSM over the built-in service wrapper:
 
 ```cmd
-nssm install SQMeterAlpaca "C:\path\to\sqmeter-alpaca-safetymonitor.exe"
+nssm install SQMeterAlpaca "C:\path\to\sqmeter-ascom-alpaca.exe"
 nssm set SQMeterAlpaca AppDirectory "C:\path\to\"
 nssm set SQMeterAlpaca AppStdout "C:\path\to\logs\out.log"
 nssm set SQMeterAlpaca AppStderr "C:\path\to\logs\err.log"

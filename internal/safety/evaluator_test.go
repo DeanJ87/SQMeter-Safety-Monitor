@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"sqmeter-alpaca-safetymonitor/internal/config"
-	"sqmeter-alpaca-safetymonitor/internal/safety"
-	"sqmeter-alpaca-safetymonitor/internal/sqmclient"
+	"sqmeter-ascom-alpaca/internal/config"
+	"sqmeter-ascom-alpaca/internal/safety"
+	"sqmeter-ascom-alpaca/internal/sqmclient"
 )
 
 func defaultCfg() *config.Config {

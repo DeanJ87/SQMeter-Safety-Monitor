@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-// Config holds all runtime configuration for sqmeter-alpaca-safetymonitor.
+// Config holds all runtime configuration for sqmeter-ascom-alpaca.
 // Settings are loaded from a JSON config file (see Load). The only
 // environment variable that influences runtime behaviour is LOG_LEVEL, which
 // is a process/logging concern and not a configuration file setting.

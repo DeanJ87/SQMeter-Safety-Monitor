@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"sqmeter-alpaca-safetymonitor/internal/alpaca"
-	"sqmeter-alpaca-safetymonitor/internal/config"
-	"sqmeter-alpaca-safetymonitor/internal/state"
+	"sqmeter-ascom-alpaca/internal/alpaca"
+	"sqmeter-ascom-alpaca/internal/config"
+	"sqmeter-ascom-alpaca/internal/state"
 )
 
 func newTestHandler(connected bool, ev state.EvaluatedState) *alpaca.Handler {

@@ -13,14 +13,14 @@
 #   CONFORM_BIN   path to the conformu binary (auto-detected)
 #   SQM_PORT      port for the mock SQMeter server  (default: 18080)
 #   ALPACA_PORT   port for the Alpaca service        (default: 11111)
-#   SERVICE_BIN   path to the built service binary   (default: bin/sqmeter-alpaca-safetymonitor)
+#   SERVICE_BIN   path to the built service binary   (default: bin/sqmeter-ascom-alpaca)
 #   LOG_LEVEL     log verbosity for the service       (default: info)
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SQM_PORT="${SQM_PORT:-18080}"
 ALPACA_PORT="${ALPACA_PORT:-11111}"
-SERVICE_BIN="${SERVICE_BIN:-${REPO_ROOT}/bin/sqmeter-alpaca-safetymonitor}"
+SERVICE_BIN="${SERVICE_BIN:-${REPO_ROOT}/bin/sqmeter-ascom-alpaca}"
 IS_MACOS=false
 [[ "$(uname)" == "Darwin" ]] && IS_MACOS=true
 

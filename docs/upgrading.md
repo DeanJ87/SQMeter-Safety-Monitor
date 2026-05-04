@@ -7,7 +7,7 @@ version** — you do not need to uninstall first.
 
 ## Steps
 
-1. Download the new installer (`sqmeter-alpaca-safetymonitor-setup-vX.Y.Z.exe`)
+1. Download the new installer (`sqmeter-ascom-alpaca-setup-vX.Y.Z.exe`)
    from [GitHub Releases](https://github.com/DeanJ87/SQMeter-ASCOM-Alpaca/releases).
 2. Run the installer as Administrator.
 3. The installer stops and unregisters the existing service, replaces the
@@ -23,7 +23,7 @@ version** — you do not need to uninstall first.
 | Step | Details |
 |------|---------|
 | Stop service | The existing service is stopped and unregistered before the binary is replaced, so the running executable is not locked. |
-| Replace binary | The new `sqmeter-alpaca-safetymonitor.exe` is written to the install directory. |
+| Replace binary | The new `sqmeter-ascom-alpaca.exe` is written to the install directory. |
 | Re-register service | The service is registered against the new binary and started. |
 | Config preserved | `config.json`, `device-uuid.txt`, and `device-oc-uuid.txt` in `%ProgramData%\SQMeter SafetyMonitor\` are not modified. |
 
@@ -66,19 +66,19 @@ To roll back to a previous version:
 
 Versions prior to the `%ProgramData%` config path change stored `config.json`
 beside the executable (e.g.
-`C:\Program Files\SQMeter Alpaca SafetyMonitor\config.json`).
+`C:\Program Files\SQMeter ASCOM Alpaca\config.json`).
 
 To migrate manually:
 
 1. Stop the service:
    ```cmd
-   sqmeter-alpaca-safetymonitor.exe --service stop
+   sqmeter-ascom-alpaca.exe --service stop
    ```
 2. Copy `config.json` from the install directory to
    `%ProgramData%\SQMeter SafetyMonitor\`.
 3. Start the service:
    ```cmd
-   sqmeter-alpaca-safetymonitor.exe --service start
+   sqmeter-ascom-alpaca.exe --service start
    ```
 
 If no config exists in `%ProgramData%`, the service starts with built-in
@@ -94,5 +94,5 @@ Automatic update checking is **not implemented**. New releases are published on
 Run the following to see the currently installed version and the releases URL:
 
 ```cmd
-sqmeter-alpaca-safetymonitor.exe --version
+sqmeter-ascom-alpaca.exe --version
 ```

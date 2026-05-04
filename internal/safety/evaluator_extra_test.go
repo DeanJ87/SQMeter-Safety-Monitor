@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"sqmeter-alpaca-safetymonitor/internal/safety"
+	"sqmeter-ascom-alpaca/internal/safety"
 )
 
 // ---------- fail-open (no data) ----------------------------------------------

@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"sqmeter-alpaca-safetymonitor/internal/alpaca"
-	"sqmeter-alpaca-safetymonitor/internal/config"
-	"sqmeter-alpaca-safetymonitor/internal/state"
+	"sqmeter-ascom-alpaca/internal/alpaca"
+	"sqmeter-ascom-alpaca/internal/config"
+	"sqmeter-ascom-alpaca/internal/state"
 )
 
 func doPUT(t *testing.T, h *alpaca.Handler, path, body string) *httptest.ResponseRecorder {

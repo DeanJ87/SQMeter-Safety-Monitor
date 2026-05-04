@@ -21,12 +21,12 @@ import (
 	"time"
 
 	"github.com/kardianos/service"
-	"sqmeter-alpaca-safetymonitor/internal/alpaca"
-	"sqmeter-alpaca-safetymonitor/internal/config"
-	"sqmeter-alpaca-safetymonitor/internal/discovery"
-	"sqmeter-alpaca-safetymonitor/internal/poller"
-	"sqmeter-alpaca-safetymonitor/internal/state"
-	"sqmeter-alpaca-safetymonitor/internal/web"
+	"sqmeter-ascom-alpaca/internal/alpaca"
+	"sqmeter-ascom-alpaca/internal/config"
+	"sqmeter-ascom-alpaca/internal/discovery"
+	"sqmeter-ascom-alpaca/internal/poller"
+	"sqmeter-ascom-alpaca/internal/state"
+	"sqmeter-ascom-alpaca/internal/web"
 )
 
 // Injected at build time via -ldflags.
@@ -85,7 +85,7 @@ func (p *program) run(ctx context.Context, interactive bool) {
 	}
 
 	logger := newLogger(cfg.LogLevel)
-	logger.Info("starting sqmeter-alpaca-safetymonitor",
+	logger.Info("starting sqmeter-ascom-alpaca",
 		"version", version,
 		"sqmeter_url", cfg.SQMeterBaseURL,
 		"http_port", cfg.AlpacaHTTPPort,
@@ -237,7 +237,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("sqmeter-alpaca-safetymonitor %s (commit %s, built %s)\n", version, commit, date)
+		fmt.Printf("sqmeter-ascom-alpaca %s (commit %s, built %s)\n", version, commit, date)
 		fmt.Printf("Latest releases: %s\n", config.ReleasesURL)
 		return
 	}
@@ -293,8 +293,8 @@ func main() {
 	}
 
 	svcConfig := &service.Config{
-		Name:        "SQMeterAlpacaSafetyMonitor",
-		DisplayName: "SQMeter Alpaca SafetyMonitor",
+		Name:        "SQMeterASCOMAlpaca",
+		DisplayName: "SQMeter ASCOM Alpaca",
 		Description: "ASCOM Alpaca SafetyMonitor bridge for SQMeter ESP32. Responds to Alpaca discovery on UDP port 32227.",
 	}
 
@@ -414,8 +414,8 @@ func printDiagnosticsReport(r web.DiagnosticsReport) {
 		return out
 	}
 
-	fmt.Println("sqmeter-alpaca-safetymonitor diagnostics")
-	fmt.Println("=========================================")
+	fmt.Println("sqmeter-ascom-alpaca diagnostics")
+	fmt.Println("================================")
 	fmt.Printf("version:    %s\n", none(r.Version))
 	fmt.Printf("timestamp:  %s\n", r.Timestamp)
 	fmt.Printf("uptime:     %s\n", r.Uptime)

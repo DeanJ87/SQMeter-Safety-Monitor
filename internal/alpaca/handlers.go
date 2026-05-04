@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"sqmeter-alpaca-safetymonitor/internal/config"
-	"sqmeter-alpaca-safetymonitor/internal/state"
+	"sqmeter-ascom-alpaca/internal/config"
+	"sqmeter-ascom-alpaca/internal/state"
 )
 
 const (
@@ -19,7 +19,7 @@ const (
 	deviceType       = "SafetyMonitor"
 	deviceNumber     = 0
 	description      = "ASCOM Alpaca SafetyMonitor bridge for SQMeter ESP32"
-	driverInfo       = "SQMeter Alpaca SafetyMonitor"
+	driverInfo       = "SQMeter ASCOM Alpaca"
 )
 
 // Handler serves all ASCOM Alpaca endpoints for the SafetyMonitor device.
@@ -190,8 +190,8 @@ func (h *Handler) GetAPIVersions(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetServerDescription(w http.ResponseWriter, r *http.Request) {
 	_, clientTxID := parseGetParams(r)
 	writeJSON(w, okResp(clientTxID, h.nextTxID(), ServerDescription{
-		ServerName:          "SQMeter Alpaca SafetyMonitor",
-		Manufacturer:        "sqmeter-alpaca",
+		ServerName:          "SQMeter ASCOM Alpaca",
+		Manufacturer:        "sqmeter-ascom-alpaca",
 		ManufacturerVersion: h.version,
 		Location:            "local",
 	}))

@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"sqmeter-alpaca-safetymonitor/internal/config"
-	"sqmeter-alpaca-safetymonitor/internal/poller"
-	"sqmeter-alpaca-safetymonitor/internal/sqmclient"
-	"sqmeter-alpaca-safetymonitor/internal/state"
+	"sqmeter-ascom-alpaca/internal/config"
+	"sqmeter-ascom-alpaca/internal/poller"
+	"sqmeter-ascom-alpaca/internal/sqmclient"
+	"sqmeter-ascom-alpaca/internal/state"
 )
 
 func silentLogger() *slog.Logger {
