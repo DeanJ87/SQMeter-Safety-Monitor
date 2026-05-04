@@ -1,15 +1,21 @@
 # N.I.N.A. Alpaca discovery setup and troubleshooting
 
-This document explains how ASCOM Alpaca discovery works, how to connect SQMeter
-SafetyMonitor in N.I.N.A., and how to diagnose problems when the device does not
-appear or when another Alpaca server (such as ASCOM Alpaca Simulators) is
-interfering.
+This document explains how ASCOM Alpaca discovery works, how to connect the
+SQMeter ASCOM Alpaca bridge in N.I.N.A., and how to diagnose problems when
+devices do not appear or when another Alpaca server (such as ASCOM Alpaca
+Simulators) is interfering.
 
 ---
 
-## How this device appears in N.I.N.A.
+## How this bridge appears in N.I.N.A.
 
-SQMeter SafetyMonitor is a **native ASCOM Alpaca SafetyMonitor** device.
+**SQMeter ASCOM Alpaca** is a **native ASCOM Alpaca bridge** — it speaks the
+Alpaca HTTP protocol directly and exposes two devices from a single service:
+
+| Alpaca device | N.I.N.A. equipment category | Purpose |
+|---|---|---|
+| `SQMeter SafetyMonitor` | Equipment → Safety Monitor | Safety decisions (IsSafe) |
+| `SQMeter ObservingConditions` | Equipment → Weather | Capture metadata, FITS/XISF headers |
 
 - It runs an HTTP Alpaca API on port `11111` by default.
 - It listens on UDP port `32227` for Alpaca discovery broadcasts.
@@ -19,15 +25,20 @@ In N.I.N.A., go to **Equipment → Safety Monitor**, select **ASCOM Alpaca** in
 the driver selector, and click the refresh/discovery button. N.I.N.A. will send
 a UDP discovery broadcast, receive a reply from each Alpaca server on the
 network, and then query `/management/v1/configureddevices` on each one.
-SQMeter SafetyMonitor will appear as:
+The bridge will report both devices:
 
 ```
 DeviceName: SQMeter SafetyMonitor
 DeviceType: SafetyMonitor
 DeviceNumber: 0
+
+DeviceName: SQMeter ObservingConditions
+DeviceType: ObservingConditions
+DeviceNumber: 0
 ```
 
-Select it and click **Connect**.
+Select the appropriate device for each N.I.N.A. equipment slot and click
+**Connect**.
 
 ---
 
@@ -43,7 +54,7 @@ standard.
 
 **`11111` is still Alpaca.** It is a common misconception that port `11111` is
 reserved for ASCOM Remote Server. Port `11111` is simply the default Alpaca HTTP
-port used by many Alpaca servers. SQMeter SafetyMonitor uses it as its default,
+port used by many Alpaca servers. SQMeter ASCOM Alpaca uses it as its default,
 and you can change it in `config.json`.
 
 **`32227` is the discovery port.** N.I.N.A. (and other Alpaca clients) broadcast
@@ -57,7 +68,7 @@ Alpaca server that is listening replies with a JSON packet:
 The client then makes an HTTP request to that port to enumerate devices.
 
 Multiple Alpaca servers can share UDP port `32227` simultaneously. On Windows,
-SQMeter SafetyMonitor uses `SO_REUSEADDR` so it can coexist with other Alpaca
+SQMeter ASCOM Alpaca uses `SO_REUSEADDR` so it can coexist with other Alpaca
 servers such as ASCOM Alpaca Simulators. Each server replies independently with
 its own HTTP port.
 
@@ -65,7 +76,7 @@ Example when both servers are running:
 
 | Server | UDP reply |
 |--------|-----------|
-| SQMeter SafetyMonitor | `{"AlpacaPort": 11111}` |
+| SQMeter ASCOM Alpaca | `{"AlpacaPort": 11111}` |
 | ASCOM Alpaca Simulators | `{"AlpacaPort": 32323}` |
 
 N.I.N.A. queries both and lists all devices it finds.
@@ -81,7 +92,7 @@ in-process DLLs) over the Alpaca HTTP protocol. Use it when you have an existing
 COM driver and want to reach it from a remote machine or from software that
 prefers Alpaca.
 
-SQMeter SafetyMonitor is already a native Alpaca server. It speaks the Alpaca
+SQMeter ASCOM Alpaca is already a native Alpaca server. It speaks the Alpaca
 HTTP protocol directly, with no COM layer. Installing or running ASCOM Remote
 Server alongside it is harmless but unnecessary.
 
@@ -110,6 +121,12 @@ Expected output for `configureddevices`:
     {
       "DeviceName": "SQMeter SafetyMonitor",
       "DeviceType": "SafetyMonitor",
+      "DeviceNumber": 0,
+      "UniqueID": "..."
+    },
+    {
+      "DeviceName": "SQMeter ObservingConditions",
+      "DeviceType": "ObservingConditions",
       "DeviceNumber": 0,
       "UniqueID": "..."
     }
@@ -194,7 +211,7 @@ while ([DateTime]::UtcNow -lt $deadline) {
 $udp.Close()
 ```
 
-**Expected output** when SQMeter SafetyMonitor is running:
+**Expected output** when SQMeter ASCOM Alpaca is running:
 
 ```
 Reply from 127.0.0.1:32227 => {"AlpacaPort":11111}
@@ -206,8 +223,8 @@ If ASCOM Alpaca Simulators is also running, you will see a second line:
 Reply from 127.0.0.1:32227 => {"AlpacaPort":32323}
 ```
 
-If you see only the Simulators line and not the SQMeter line, the SQMeter
-SafetyMonitor service is not running or not listening on UDP — see
+If you see only the Simulators line and not the SQMeter line, the bridge
+service is not running or not listening on UDP — see
 [Troubleshooting](#troubleshooting) below.
 
 ---
@@ -234,10 +251,10 @@ in UDP discovery.
 
 ### Only ASCOM Alpaca Simulators appears in N.I.N.A.
 
-The Simulators responded to discovery but SQMeter SafetyMonitor did not. This
+The Simulators responded to discovery but SQMeter ASCOM Alpaca did not. This
 usually means one of:
 
-- **SQMeter SafetyMonitor is not running.** Start `sqmeter-alpaca-safetymonitor.exe`.
+- **The bridge is not running.** Start `sqmeter-alpaca-safetymonitor.exe`.
 - **Discovery listener failed to bind.** Check `/status.json` → `discovery.healthy`.
 - **Firewall is blocking UDP 32227 inbound.** See [Firewall](#firewall).
 - **You are connecting from a different machine** and the service is bound to
@@ -245,7 +262,7 @@ usually means one of:
   loopback-only listener.
 
 The Simulators appearing proves that discovery itself works. The issue is specific
-to the SQMeter SafetyMonitor listener.
+to the SQMeter ASCOM Alpaca discovery listener.
 
 ### Service is bound to `127.0.0.1` but you need LAN access
 
@@ -275,7 +292,7 @@ After adding the rules, re-run the UDP discovery check to confirm.
 an error. The `last_error` field contains the specific message.
 
 Common cause: another process bound port `32227` without `SO_REUSEADDR` before
-SQMeter SafetyMonitor started. Find the owner with:
+the bridge started. Find the owner with:
 
 ```powershell
 netstat -ano | findstr ":32227"
@@ -283,8 +300,8 @@ Get-Process -Id <PID>
 ```
 
 If the conflict is with ASCOM Alpaca Simulators, try stopping the Simulators
-first, restarting SQMeter SafetyMonitor, then starting the Simulators again.
-Both should coexist once SQMeter SafetyMonitor has successfully bound with
+first, restarting SQMeter ASCOM Alpaca, then starting the Simulators again.
+Both should coexist once the bridge has successfully bound with
 `SO_REUSEADDR`.
 
 ### The dashboard looks stale but you changed something
@@ -310,4 +327,4 @@ If you are running a remote desktop or SSH session, be aware:
   machine where the service runs.
 
 For cross-machine testing, use the LAN IP address of the machine running
-SQMeter SafetyMonitor (and ensure `ALPACA_HTTP_BIND` is `0.0.0.0`).
+SQMeter ASCOM Alpaca (and ensure `ALPACA_HTTP_BIND` is `0.0.0.0`).
