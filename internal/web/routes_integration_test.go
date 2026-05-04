@@ -30,7 +30,7 @@ func TestRouteRegistration_NoConflict(t *testing.T) {
 	alpacaHandler.Register(mux)
 	webHandler.Register(mux)
 
-	// Test GET / returns dashboard HTML
+	// Test GET / returns dashboard HTML with correct branding
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -38,8 +38,8 @@ func TestRouteRegistration_NoConflict(t *testing.T) {
 		t.Errorf("GET /: want 200, got %d", w.Code)
 	}
 	body := w.Body.String()
-	if !strings.Contains(body, "SQMeter") {
-		t.Error("GET /: expected dashboard HTML")
+	if !strings.Contains(body, "ASCOM SQMeter Bridge") {
+		t.Error("GET /: expected ASCOM SQMeter Bridge branding in dashboard HTML")
 	}
 
 	// Test unknown /api/ path returns JSON 404, not HTML
@@ -50,8 +50,8 @@ func TestRouteRegistration_NoConflict(t *testing.T) {
 		t.Errorf("GET /api/v1/badpath: want 404, got %d", w.Code)
 	}
 	body = w.Body.String()
-	if strings.Contains(body, "<html") || strings.Contains(body, "SQMeter") {
-		t.Error("GET /api/v1/badpath: should return JSON, not HTML dashboard")
+	if strings.Contains(body, "<html") || strings.Contains(body, "ASCOM SQMeter Bridge") {
+		t.Error("GET /api/v1/badpath: must not return HTML dashboard")
 	}
 	if !strings.Contains(body, "not found") {
 		t.Error("GET /api/v1/badpath: expected 'not found' in JSON response")

@@ -1018,3 +1018,67 @@ func TestDashboard_UnknownPath_NotFound(t *testing.T) {
 		t.Errorf("GET /nonexistent: want 404, got %d", w.Code)
 	}
 }
+
+// ---------- redesigned dashboard branding and structure ----------------------
+
+func TestDashboard_IncludesASCOMSQMeterBridgeBranding(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	w := serve(t, h, http.MethodGet, "/", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("dashboard: want 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "ASCOM SQMeter Bridge") {
+		t.Error("dashboard: expected 'ASCOM SQMeter Bridge' branding")
+	}
+}
+
+func TestDashboard_IncludesSafetyMonitorSection(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	w := serve(t, h, http.MethodGet, "/", "")
+	body := w.Body.String()
+	if !strings.Contains(body, "Safety Monitor") {
+		t.Error("dashboard: expected 'Safety Monitor' section")
+	}
+	if !strings.Contains(body, "SafetyMonitor/0") {
+		t.Error("dashboard: expected 'SafetyMonitor/0' device listed")
+	}
+}
+
+func TestDashboard_IncludesObservingConditionsSection(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	w := serve(t, h, http.MethodGet, "/", "")
+	body := w.Body.String()
+	if !strings.Contains(body, "Observing Conditions") {
+		t.Error("dashboard: expected 'Observing Conditions' section")
+	}
+	if !strings.Contains(body, "ObservingConditions/0") {
+		t.Error("dashboard: expected 'ObservingConditions/0' device listed")
+	}
+}
+
+func TestDashboard_NetworkExposureWarning_WhenWideOpen(t *testing.T) {
+	h, cfgHolder, _ := newTestWebHandler(t, true, safeEv())
+	cfg := *cfgHolder.Get()
+	cfg.AlpacaHTTPBind = "0.0.0.0"
+	cfgHolder.Update(&cfg) //nolint:errcheck
+
+	w := serve(t, h, http.MethodGet, "/", "")
+	body := w.Body.String()
+	if !strings.Contains(body, "0.0.0.0") {
+		t.Error("dashboard: expected bind address 0.0.0.0 in network warning")
+	}
+	if !strings.Contains(body, "reachable from the network") {
+		t.Error("dashboard: expected network exposure warning text")
+	}
+}
+
+func TestDashboard_NoNetworkWarning_WhenLoopback(t *testing.T) {
+	h, _, _ := newTestWebHandler(t, true, safeEv())
+	// default bind is 127.0.0.1
+	w := serve(t, h, http.MethodGet, "/", "")
+	body := w.Body.String()
+	if strings.Contains(body, "reachable from the network") {
+		t.Error("dashboard: must not show network warning for 127.0.0.1 bind")
+	}
+}
