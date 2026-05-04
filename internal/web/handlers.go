@@ -236,7 +236,9 @@ func (h *Handler) renderDashboard(w http.ResponseWriter, initialPage string, q u
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write(buf.Bytes())
+	if _, err := w.Write(buf.Bytes()); err != nil {
+		return
+	}
 }
 
 // buildOCProperties constructs the Observing Conditions property table rows from
