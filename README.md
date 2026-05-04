@@ -1,7 +1,7 @@
 # SQMeter ASCOM Alpaca
 
-[![CI](https://github.com/DeanJ87/SQMeter-Safety-Monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/DeanJ87/SQMeter-Safety-Monitor/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/github/DeanJ87/SQMeter-Safety-Monitor/graph/badge.svg?token=I7DHSX92BN)](https://codecov.io/github/DeanJ87/SQMeter-Safety-Monitor)
+[![CI](https://github.com/DeanJ87/SQMeter-ASCOM-Alpaca/actions/workflows/ci.yml/badge.svg)](https://github.com/DeanJ87/SQMeter-ASCOM-Alpaca/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/github/DeanJ87/SQMeter-ASCOM-Alpaca/graph/badge.svg?token=I7DHSX92BN)](https://codecov.io/github/DeanJ87/SQMeter-ASCOM-Alpaca)
 
 A native **ASCOM Alpaca bridge** for the [SQMeter ESP32](https://deanj87.github.io/SQMeter/) sky-quality sensor.
 
@@ -39,7 +39,7 @@ It answers two questions: **"Is it safe for the observatory to operate right now
 
 ## Quick start (Windows)
 
-1. Download `sqmeter-alpaca-safetymonitor-setup-vX.Y.Z.exe` from [Releases](../../releases)
+1. Download `sqmeter-alpaca-safetymonitor-setup-vX.Y.Z.exe` from [Releases](https://github.com/DeanJ87/SQMeter-ASCOM-Alpaca/releases)
 2. Run the installer as Administrator — it installs the binary, registers a Windows service, and starts it
 3. On first run the setup page opens automatically at `http://localhost:11111/setup`
 4. Complete setup to point the bridge at your SQMeter
@@ -131,8 +131,8 @@ See [docs/nina-alpaca-discovery.md](docs/nina-alpaca-discovery.md) for a complet
 ## Building from source
 
 ```bash
-git clone https://github.com/DeanJ87/SQMeter-Safety-Monitor
-cd SQMeter-Safety-Monitor
+git clone https://github.com/DeanJ87/SQMeter-ASCOM-Alpaca
+cd SQMeter-ASCOM-Alpaca
 make build          # ./bin/sqmeter-alpaca-safetymonitor (current platform)
 make build-windows  # ./dist/sqmeter-alpaca-safetymonitor-windows-amd64.exe
 make test           # run all tests with race detector

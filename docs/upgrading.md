@@ -8,7 +8,7 @@ version** — you do not need to uninstall first.
 ## Steps
 
 1. Download the new installer (`sqmeter-alpaca-safetymonitor-setup-vX.Y.Z.exe`)
-   from [GitHub Releases](https://github.com/DeanJ87/SQMeter-Safety-Monitor/releases).
+   from [GitHub Releases](https://github.com/DeanJ87/SQMeter-ASCOM-Alpaca/releases).
 2. Run the installer as Administrator.
 3. The installer stops and unregisters the existing service, replaces the
    binary, re-registers the service, and starts it.
@@ -53,7 +53,7 @@ restore a backup config.
 To roll back to a previous version:
 
 1. Download the older installer from
-   [GitHub Releases](https://github.com/DeanJ87/SQMeter-Safety-Monitor/releases).
+   [GitHub Releases](https://github.com/DeanJ87/SQMeter-ASCOM-Alpaca/releases).
 2. Run it over the current installation using the same install-over-existing
    process.
 3. `config.json` is unaffected. If the older binary does not understand the
@@ -89,7 +89,7 @@ defaults and opens the setup page automatically on the first interactive run.
 ## Automatic updates
 
 Automatic update checking is **not implemented**. New releases are published on
-[GitHub Releases](https://github.com/DeanJ87/SQMeter-Safety-Monitor/releases).
+[GitHub Releases](https://github.com/DeanJ87/SQMeter-ASCOM-Alpaca/releases).
 
 Run the following to see the currently installed version and the releases URL:
 

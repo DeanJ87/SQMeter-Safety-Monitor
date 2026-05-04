@@ -63,6 +63,8 @@ checksum:
 release:
   github:
     owner: "{{ .Env.GITHUB_REPOSITORY_OWNER }}"
+    # TODO(repo-rename): update to SQMeter-ASCOM-Alpaca once the GitHub repo
+    # is actually renamed. Changing this before the rename would break releases.
     name: SQMeter-Safety-Monitor
   draft: false
   prerelease: auto
